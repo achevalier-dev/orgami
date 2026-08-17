@@ -961,9 +961,14 @@ join_from_repo() {
   org=$(jq -r '.org // empty' "$dir/map/graph.json" 2>/dev/null)
   [[ -n $org ]] || die "no graph.json in $repo:$path — has anyone run 'orgami scan' yet?"
 
+  # Whatever the company decided about notes travels with the map.
+  local team='{}'
+  [[ -f $src/settings.json ]] && team=$(jq -c '.' "$src/settings.json" 2>/dev/null || echo '{}')
+
   jq -n --arg company "$company" --arg org "$org" --arg repo "$repo" --arg path "$path" \
+    --argjson team "$team" \
     '{company: $company, org: $org, docs_repo: $repo, docs_path: $path,
-      exclude: [], include: [], report_model: "claude-sonnet-5"}' >"$dir/config.json"
+      exclude: [], include: [], report_model: "claude-sonnet-5"} + $team' >"$dir/config.json"
 
   mkdir -p "$ORGAMI_HOME"
   [[ -f $ORGAMI_HOME/config.json ]] || echo '{}' >"$ORGAMI_HOME/config.json"

@@ -125,10 +125,17 @@ cmd_publish() {
   local work="$DIR/cache/docs"
   if [[ -d $work/.git ]]; then
     git -C "$work" fetch --quiet origin
-    git -C "$work" reset --hard --quiet "origin/$(git -C "$work" rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||')"
   else
     git clone --quiet --depth 1 "$repo" "$work" || die "cannot clone $repo"
   fi
+
+  # Notes sync leaves this checkout on its own branch. Get back onto the default
+  # one before writing anything, or the whole map lands on someone's note PR.
+  local main
+  main=$(git -C "$work" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||')
+  [[ -n $main ]] || main=$(git -C "$work" symbolic-ref --short HEAD 2>/dev/null || echo main)
+  git -C "$work" checkout -B "$main" --quiet "origin/$main" ||
+    die "cannot get onto $main in the docs repo"
 
   local dest="$work/$path"
   mkdir -p "$dest/reports"
@@ -145,6 +152,14 @@ cmd_publish() {
     mkdir -p "$dest/runbooks"
     cp -f "$DIR/map/runbooks/"*.md "$dest/runbooks/" 2>/dev/null || true
   fi
+
+  # How this company wants notes handled, so a teammate who joins inherits it
+  # instead of each machine deciding for itself.
+  jq '{notes_autopublish: (.notes_autopublish // false),
+       notes_review: (.notes_review // false),
+       notes_auto_merge: (.notes_auto_merge // false),
+       report_model: (.report_model // "claude-sonnet-5")}' \
+    "$DIR/config.json" >"$dest/settings.json" 2>/dev/null || true
 
   publish_front_page "$dest" "$work" "$path"
   publish_report_index "$dest"

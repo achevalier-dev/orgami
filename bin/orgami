@@ -96,7 +96,7 @@ case $cmd in
     source "$ROOT/lib/notes.sh"
     "cmd_$cmd" "$@"
     ;;
-  card | context)
+  card | context | brief)
     source "$ROOT/lib/card.sh"
     "cmd_$cmd" "$@"
     ;;

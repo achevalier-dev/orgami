@@ -21,9 +21,15 @@ mkdir -p "$BIN_DIR"
 ln -sf "$REPO/bin/orgami" "$BIN_DIR/orgami"
 echo "linked $BIN_DIR/orgami -> $REPO/bin/orgami"
 
-mkdir -p "$SKILL_DIR"
-ln -sf "$REPO/skills/orgami/SKILL.md" "$SKILL_DIR/SKILL.md"
-echo "linked $SKILL_DIR/SKILL.md"
+# Installed as a Claude Code plugin? Then the plugin already supplies the skill,
+# the slash commands and the session hook — linking it again would duplicate it.
+if [[ $REPO == *"/.claude/plugins/"* ]]; then
+  echo "running inside a Claude Code plugin — skill and hooks come from the plugin"
+else
+  mkdir -p "$SKILL_DIR"
+  ln -sf "$REPO/skills/orgami/SKILL.md" "$SKILL_DIR/SKILL.md"
+  echo "linked $SKILL_DIR/SKILL.md"
+fi
 
 mkdir -p "$UNIT_DIR"
 cp -f "$REPO/systemd/orgami-weekly@.service" "$REPO/systemd/orgami-weekly@.timer" "$UNIT_DIR/"

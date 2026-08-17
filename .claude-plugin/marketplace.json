@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "orgami",
+  "description": "Weekly pull request recaps and an evidence-backed map of a GitHub organization, loaded into every session and shared across a team through git.",
+  "owner": {
+    "name": "Antoine Chevalier",
+    "url": "https://github.com/achevalier-dev"
+  },
+  "plugins": [
+    {
+      "name": "orgami",
+      "description": "Know the org before you touch it: repo pages, call graph, conventions, decisions, and shared team notes.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

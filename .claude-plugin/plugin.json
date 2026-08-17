@@ -1,0 +1,25 @@
+{
+  "name": "orgami",
+  "description": "Organization context for agents: what each repo is, how to run it, what it talks to, the team's conventions and decisions, and a shared note memory synced through git.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Antoine Chevalier",
+    "url": "https://github.com/achevalier-dev"
+  },
+  "homepage": "https://github.com/achevalier-dev/orgami",
+  "license": "MIT",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-context.sh\"",
+            "timeout": 10,
+            "statusMessage": "Loading organization context..."
+          }
+        ]
+      }
+    ]
+  }
+}

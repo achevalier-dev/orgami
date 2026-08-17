@@ -15,12 +15,36 @@ timer, and plain files that diff cleanly in git.
 
 ## Install
 
+In Claude Code:
+
+```
+/plugin marketplace add achevalier-dev/orgami
+/plugin install orgami@orgami
+```
+
+Then ask Claude to run the installer it mentions, or do it yourself:
+
+```bash
+~/.claude/plugins/marketplaces/orgami/install.sh
+```
+
+The plugin brings the skill, the `/orgami` and `/note` commands, and a
+`SessionStart` hook that hands Claude the context for whatever repo you opened —
+framework, run and test commands, linked repos, and the team's notes on it —
+before you type anything. The installer puts the `orgami` CLI on your PATH and
+installs the weekly timer.
+
+Without Claude Code, or for a server that only runs the weekly job:
+
 ```bash
 git clone https://github.com/achevalier-dev/orgami ~/orgami
 cd ~/orgami && ./install.sh
 ```
 
 Needs `gh` (authenticated), `jq`, `git`, `fzf`, `gum` and `claude` on PATH.
+
+Then either map an org yourself with `orgami init`, or pick up one a colleague
+has already mapped with `orgami join`.
 
 ## Use
 
@@ -145,6 +169,27 @@ orgami query 51.158.10.20
 
 ## What an agent reads
 
+With the plugin installed there is nothing to run. Opening Claude Code in a
+mapped checkout injects the short version at session start:
+
+```
+orgami — winit (winitapp), map from 2026-08-17
+
+WinIt-backend — TypeScript, Agenda jobs, Express, Parse SDK, Parse Server
+
+  build: tsc -p tsconfig.build.json
+  test: cross-env NODE_ENV=test ... jest --silent --coverage test/*
+
+linked repos:
+  calls -> Attorney-Portal
+  changes-with <- Close-SMS-Report
+
+team notes on this repo:
+- Parse Dashboard config lives in WinIt-ParseDashboard/index.js, not the fork …
+```
+
+Outside a mapped repo it prints nothing at all. For the whole page:
+
 ```bash
 orgami context          # inside a checkout: that repo. anywhere else: the org.
 orgami context <repo>   # by name
@@ -201,6 +246,10 @@ lib/coupling.sh        which repos change together
 lib/ui.sh              the menu and the setup wizard
 lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
+prompts/decisions.md   the decision-mining prompt
+hooks/                 the SessionStart hook
+commands/              /orgami and /note
+.claude-plugin/        plugin and marketplace manifests
 skills/orgami/         the Claude Code skill
 systemd/               orgami-weekly@.service and .timer
 ```

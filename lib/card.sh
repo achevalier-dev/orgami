@@ -193,6 +193,70 @@ context_overview() {
   echo "Ask for one by name: \`orgami context <repo>\`."
 }
 
+# A short version for automatic injection at session start: the facts an agent
+# needs before its first edit, and nothing it can look up later.
+card_brief() {
+  local repo=$1
+  local g="$DIR/map/graph.json" p="$DIR/map/repos.json"
+  local prof
+  prof=$(jq -c --arg r "$repo" '.[] | select(.name == $r)' "$p" 2>/dev/null)
+  [[ -n $prof ]] || return 1
+
+  jq -r --argjson prof "$prof" --arg repo "$repo" '
+    . as $g
+    | ("repo:" + $repo) as $id
+    | [
+        ($repo + " — " + ([($prof.meta.language // empty),
+           ($prof.frameworks | if length > 0 then join(", ") else empty end)]
+          | map(select(. != null and . != "")) | join(", "))),
+        ""
+      ]
+      + (($prof.commands.scripts | to_entries | .[0:5]) as $s
+         | if ($s | length) == 0 then []
+           else ($s | map("  " + .key + ": " + .value)) + [""] end)
+      + ([$g.edges[] | select((.from == $id or .to == $id)
+            and (.kind | IN("calls", "references", "shares-config", "changes-with")))
+          | if .from == $id
+            then "  " + .kind + " -> " + (.to | sub("^repo:"; ""))
+            else "  " + .kind + " <- " + (.from | sub("^repo:"; "")) end]
+         | unique | .[0:8]
+         | if length == 0 then [] else ["linked repos:"] + . + [""] end)
+      | .[]' "$g"
+}
+
+cmd_brief() {
+  local want=${1:-}
+  [[ -n $want ]] || want=$(card_repo_here 2>/dev/null || true)
+  context_pick_company "$want"
+  load_company 2>/dev/null || return 0
+  [[ -f $DIR/map/repos.json ]] || return 0
+  [[ -n $want ]] || return 0
+  jq -e --arg r "$want" 'any(.[]; .name == $r)' "$DIR/map/repos.json" >/dev/null 2>&1 || return 0
+
+  echo "orgami — $COMPANY ($ORG), map from $(jq -r '.generated | .[0:10]' "$DIR/map/graph.json")"
+  echo
+  card_brief "$want" || return 0
+  source "$ROOT/lib/notes.sh"
+  notes_for_repo "$want" | sed 's/^## What the team has learned/team notes on this repo:/'
+  echo "full page: orgami context · org: orgami context --org · why: $DIR/map/DECISIONS.md"
+}
+
+# Point the company at whichever config owns this checkout's org.
+context_pick_company() {
+  [[ -z ${ORGAMI_COMPANY:-} ]] || return 0
+  local url org c
+  url=$(git -C "$PWD" remote get-url origin 2>/dev/null || true)
+  [[ -n $url ]] || return 0
+  org=$(sed -E 's|.*[:/]([^/]+)/[^/]+$|\1|' <<<"$url")
+  while read -r c; do
+    [[ -n $c ]] || continue
+    if [[ $(jq -r .org "$(company_dir "$c")/config.json" 2>/dev/null) == "$org" ]]; then
+      export ORGAMI_COMPANY="$c"
+      return 0
+    fi
+  done < <(companies)
+}
+
 cmd_context() {
   local want=${1:-}
   local guessed=""
@@ -202,21 +266,7 @@ cmd_context() {
     want=$guessed
   fi
 
-  # Point the company at whichever config owns this repo's org.
-  if [[ -n $want && -z ${ORGAMI_COMPANY:-} ]]; then
-    local url org c
-    url=$(git -C "$PWD" remote get-url origin 2>/dev/null || true)
-    if [[ -n $url ]]; then
-      org=$(sed -E 's|.*[:/]([^/]+)/[^/]+$|\1|' <<<"$url")
-      while read -r c; do
-        [[ -n $c ]] || continue
-        if [[ $(jq -r .org "$(company_dir "$c")/config.json") == "$org" ]]; then
-          export ORGAMI_COMPANY="$c"
-          break
-        fi
-      done < <(companies)
-    fi
-  fi
+  context_pick_company
 
   load_company
   [[ -f $DIR/map/repos.json ]] || die "no map yet — run: orgami scan"

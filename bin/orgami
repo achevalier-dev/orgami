@@ -38,7 +38,8 @@ orgami — weekly PR recaps and a map of an organization's repositories
                                         cache merged PRs for a week
   orgami report [--week YYYY-Www] [--model M] [--stats-only]
                                         write the weekly recap
-  orgami latest [--week W] [--raw]      read the newest recap
+  orgami latest [--week W] [--exec]     read the newest recap
+                [--raw]                 --exec for the plain-language one
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards

@@ -47,7 +47,7 @@ runbook_constraints() {
 # request that fixed it — which is what a runbook entry is.
 runbook_seen_before() {
   local repo=$1 f week
-  for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null | sort -r); do
+  for f in $(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null | sort -r); do
     week=$(basename "$f" .md)
     sed -n '/^## What got fixed/,/^## [A-Z]/p;/^## Security/,/^## [A-Z]/p' "$f" 2>/dev/null |
       grep '^- ' | grep -- "/$repo#" |
@@ -321,7 +321,7 @@ runbook_org() {
 
     local constraints=""
     [[ -d $DIR/map/decisions ]] &&
-      constraints=$(cat "$DIR/map/decisions"/*.md 2>/dev/null | grep '^- ' | head -20)
+      constraints=$(cat "$DIR/map/decisions"/*.md 2>/dev/null | grep '^- ' | head -20 || true)
     if [[ -n $constraints ]]; then
       echo "## Standing constraints"
       echo
@@ -391,7 +391,7 @@ runbook_incidents_page() {
     local silent
     silent=$(jq -r '.[] | select([.env[]? | select(test("SENTRY|BETTERSTACK|DATADOG|NEW_?RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG"))] | length == 0)
       | select([.routes[]? | select(test("/(health|healthz|status|ping|ready|live)"; "i"))] | length == 0)
-      | .name' "$profiles" | sort | paste -sd, - | sed 's/,/, /g')
+      | .name' "$profiles" | sort | paste -sd, - | sed 's/,/, /g' || true)
     if [[ -n $silent ]]; then
       echo "**Nothing reports on these:** $silent"
       echo
@@ -402,7 +402,7 @@ runbook_incidents_page() {
 
     echo "## Where the fires start"
     echo
-    for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null); do
+    for f in $(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null); do
       sed -n '/^## What got fixed/,/^## [A-Z]/p;/^## Security/,/^## [A-Z]/p' "$f" | grep '^- '
     done | grep -oE '/[A-Za-z0-9_.-]+#[0-9]+' | sed -E 's|/([^#]+)#.*|\1|' |
       sort | uniq -c | sort -rn | head -10 |
@@ -411,7 +411,7 @@ runbook_incidents_page() {
 
     echo "## Everything recorded so far"
     echo
-    for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null | sort -r); do
+    for f in $(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null | sort -r); do
       week=$(basename "$f" .md)
       local fixes
       fixes=$(sed -n '/^## What got fixed/,/^## [A-Z]/p' "$f" | grep '^- ')

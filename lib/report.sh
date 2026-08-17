@@ -16,8 +16,9 @@ report_decisions() {
     printf '\n```\n'
   } | claude -p --model "$model" --output-format text 2>/dev/null || true)
 
-  if [[ -z $body || $body == NONE* ]]; then
+  if [[ $body == NONE* ]] || ! model_output_ok "$body" '^- '; then
     rm -f "$dest/$week.md"
+    [[ -n ${body// /} && $body != NONE* ]] && log "decisions for $week discarded — the model call did not complete"
     return 0
   fi
 
@@ -46,7 +47,10 @@ report_exec() {
     printf '\n```\n'
   } | claude -p --model "$model" --output-format text 2>/dev/null || true)
 
-  [[ -n $body ]] || return 0
+  if ! model_output_ok "$body" '^## '; then
+    log "executive brief for $week discarded — the model call did not complete"
+    return 0
+  fi
 
   {
     echo "## $week"
@@ -150,21 +154,22 @@ $(date -u +%Y-%m-%d). Numbers computed from the GitHub API; prose written by \`$
 # plain on a pipe so it composes.
 cmd_latest() {
   load_company
-  local week="" raw=0
+  local week="" raw=0 dir="$DIR/reports"
   while [[ $# -gt 0 ]]; do
     case $1 in
       --week) week=$2; shift 2 ;;
       --raw | --cat) raw=1; shift ;;
+      --exec | --plain) dir="$DIR/reports/exec"; shift ;;
       *) die "unknown flag: $1" ;;
     esac
   done
 
   local file
   if [[ -n $week ]]; then
-    file="$DIR/reports/$week.md"
-    [[ -f $file ]] || die "no recap for $week — orgami latest lists what there is"
+    file="$dir/$week.md"
+    [[ -f $file ]] || die "no recap for $week in $dir"
   else
-    file=$(find "$DIR/reports" -name '*.md' 2>/dev/null | sort | tail -1)
+    file=$(find "$dir" -maxdepth 1 -name '*.md' 2>/dev/null | sort | tail -1)
     [[ -n $file ]] || die "no recap yet — run: orgami pull && orgami report"
   fi
 

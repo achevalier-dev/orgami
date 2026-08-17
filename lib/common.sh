@@ -113,3 +113,15 @@ linkify_prs() {
     -e 's%`([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)#([0-9]+)`%[\1/\2#\3](https://github.com/\1/\2/pull/\3)%g' \
     -e 's%(^|[[:space:](])([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)#([0-9]+)%\1[\2/\3#\4](https://github.com/\2/\3/pull/\4)%g'
 }
+
+# A model call can die mid-response and hand back an error string. Anything
+# stored as content has to look like what was asked for, or it is thrown away.
+# $1 the text, $2 a grep -E pattern the text must contain somewhere.
+model_output_ok() {
+  local text=$1 shape=${2:-.}
+  [[ -n ${text// /} ]] || return 1
+  grep -qiE '^(API Error|Error:|Execution error|Credit balance|Overloaded)' <<<"$text" && return 1
+  grep -qiE 'API Error: (Connection lost|Request timed out|Internal server error)' <<<"$text" && return 1
+  grep -qE "$shape" <<<"$text" || return 1
+  return 0
+}

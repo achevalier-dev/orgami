@@ -163,6 +163,43 @@ profile_calls() {
     head -40 | jq -Rn '[inputs]'
 }
 
+# How this repo ships: one entry per workflow, with what triggers it and which
+# of them actually deploy. A repo with no deploying workflow is a fact worth
+# stating in a runbook, not a gap to paper over.
+profile_workflows() {
+  local src=$1 dir="$src/.github/workflows" f name triggers env actions deploys
+  [[ -d $dir ]] || { echo '[]'; return 0; }
+
+  {
+    for f in "$dir"/*.yml "$dir"/*.yaml; do
+      [[ -f $f ]] || continue
+      name=$(grep -m1 -E '^name:' "$f" | sed -E 's/^name:\s*//; s/^["'"'"']//; s/["'"'"']$//' || true)
+      [[ -n $name ]] || name=$(basename "$f")
+
+      triggers=$(grep -oE '^\s{0,4}(push|pull_request|workflow_dispatch|schedule|release|workflow_call|repository_dispatch):' "$f" |
+        tr -d ' :' | sort -u | paste -sd, - || true)
+
+      env=$(grep -m1 -oE '^\s+environment:\s*\S+' "$f" | awk '{print $2}' | tr -d '"' || true)
+
+      actions=$(grep -ohE 'uses:\s*[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+' "$f" |
+        sed -E 's/uses:\s*//' | sort -u | head -6 | paste -sd, - || true)
+
+      deploys=false
+      if grep -qiE 'deploy|release|publish|ship|heroku|flyctl|vercel|kamal|ecs|eks|s3 sync|aws-actions' "$f"; then
+        deploys=true
+      fi
+
+      jq -n --arg file ".github/workflows/$(basename "$f")" --arg name "$name" \
+        --arg on "$triggers" --arg env "$env" --arg actions "$actions" \
+        --argjson deploys "$deploys" \
+        '{file: $file, name: $name, deploys: $deploys,
+          on: ($on | split(",") | map(select(. != ""))),
+          environment: $env,
+          actions: ($actions | split(",") | map(select(. != "")))}'
+    done
+  } 2>/dev/null | jq -s '.'
+}
+
 # Hosts this repo declares as its own — the other half of who-calls-whom.
 profile_serves() {
   local src=$1 f
@@ -205,8 +242,10 @@ profile_repo() {
     --argjson routes "$(profile_routes "$src")" \
     --argjson calls "$(profile_calls "$src")" \
     --argjson serves "$(profile_serves "$src")" \
+    --argjson workflows "$(profile_workflows "$src")" \
     --argjson docs "$(profile_docs "$src")" \
     '{name: $name, meta: $meta, frameworks: $frameworks, commands: $commands,
-      env: $env, routes: $routes, calls: $calls, serves: $serves, agent_docs: $docs}' \
+      env: $env, routes: $routes, calls: $calls, serves: $serves,
+      workflows: $workflows, agent_docs: $docs}' \
     >"$EMITDIR/p-$repo.json"
 }

@@ -19,6 +19,9 @@ can hold several clients at once.
 orgami context
 ```
 
+With the plugin installed a short version of this is already in your context from
+session start; run the command when you need the full page.
+
 Run it inside a checkout and it prints that repo's page. Run it anywhere else
 and it prints the organization overview. `orgami context <repo>` names one
 directly. This is the first thing to run when work begins in an unfamiliar repo

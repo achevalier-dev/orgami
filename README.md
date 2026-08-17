@@ -28,7 +28,7 @@ Then ask Claude to run the installer it mentions, or do it yourself:
 ~/.claude/plugins/marketplaces/orgami/install.sh
 ```
 
-The plugin brings the skill, the `/orgami` and `/note` commands, and a
+The plugin brings the skill, the `/orgami:context` and `/orgami:note` commands, and a
 `SessionStart` hook that hands Claude the context for whatever repo you opened —
 framework, run and test commands, linked repos, and the team's notes on it —
 before you type anything. The installer puts the `orgami` CLI on your PATH and
@@ -248,7 +248,7 @@ lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
 prompts/decisions.md   the decision-mining prompt
 hooks/                 the SessionStart hook
-commands/              /orgami and /note
+commands/              /orgami:context and /orgami:note
 .claude-plugin/        plugin and marketplace manifests
 skills/orgami/         the Claude Code skill
 systemd/               orgami-weekly@.service and .timer

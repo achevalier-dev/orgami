@@ -35,11 +35,25 @@ timeout 6 "$ORGAMI" sync --pull --max-age 30 --quiet >/dev/null 2>&1 || true
 # merging it if it passes — happens detached, so the session never waits.
 "$ORGAMI" autosync --background --quiet >/dev/null 2>&1 || true
 
-brief=$("$ORGAMI" brief 2>/dev/null) || exit 0
-[[ -n $brief ]] || { [[ $JSON == 1 ]] && echo '{}'; exit 0; }
+brief=$("$ORGAMI" brief 2>/dev/null || true)
+
+# Notes drafted from earlier sessions, waiting for a person to keep or drop them.
+drafts=$("$ORGAMI" drafts --count 2>/dev/null || echo 0)
+waiting=""
+if [[ ${drafts:-0} -gt 0 ]]; then
+  waiting="
+$drafts note(s) were drafted from earlier sessions and are waiting to be kept or
+thrown away. Mention this once, and offer to run \`orgami drafts\`."
+fi
+# Drafts are worth surfacing even outside a mapped checkout; a brief is not.
+if [[ -z $brief && -z $waiting ]]; then
+  [[ $JSON == 1 ]] && echo '{}'
+  exit 0
+fi
 
 context=$(cat <<CTX
 $brief
+$waiting
 
 Use this instead of re-deriving it. \`orgami context\` for the full page.
 If this session turns up something durable that is not in the code — the real

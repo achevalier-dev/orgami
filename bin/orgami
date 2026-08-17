@@ -33,6 +33,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
 
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
+  orgami drafts                         keep or drop notes written for you
   orgami notes --check                  screen every note for anything shareable
   orgami notes --rejected               notes the reviewer sent back, and why
   orgami notes --pending                written here, not yet published
@@ -127,6 +128,16 @@ case $cmd in
   coupling)
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
+    ;;
+  note-auto)
+    source "$ROOT/lib/notes.sh"
+    source "$ROOT/lib/autonote.sh"
+    cmd_note_auto "$@"
+    ;;
+  drafts)
+    source "$ROOT/lib/notes.sh"
+    source "$ROOT/lib/autonote.sh"
+    cmd_drafts "$@"
     ;;
   note | notes | sync | join | prune | stale | review | screen | autosync)
     source "$ROOT/lib/notes.sh"

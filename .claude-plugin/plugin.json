@@ -20,6 +20,17 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-note.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

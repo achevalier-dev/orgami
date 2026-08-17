@@ -613,14 +613,26 @@ cmd_sync() {
   load_company
   need git
 
-  local review=-1
+  local review=-1 pull_only=0 max_age=0 quiet=0
   while [[ $# -gt 0 ]]; do
     case $1 in
       --pr | --review) review=1; shift ;;
       --no-pr | --direct) review=0; shift ;;
+      --pull) pull_only=1; shift ;;
+      --max-age) max_age=$2; shift 2 ;;
+      --quiet | -q) quiet=1; shift ;;
       *) die "unknown flag: $1" ;;
     esac
   done
+
+  # A read-only refresh, cheap enough to run at the start of every session.
+  # --max-age skips it entirely when the last one was recent.
+  local stamp="$DIR/cache/.last-pull"
+  if [[ $max_age -gt 0 && -f $stamp ]]; then
+    local age
+    age=$(( ( $(date +%s) - $(cat "$stamp" 2>/dev/null || echo 0) ) / 60 ))
+    [[ $age -lt $max_age ]] && return 0
+  fi
   if [[ $review == -1 ]]; then
     [[ $(cfg notes_review false) == true ]] && review=1 || review=0
   fi
@@ -628,11 +640,17 @@ cmd_sync() {
   local repo path
   repo=$(cfg docs_repo)
   path=$(cfg docs_path orgami)
-  [[ -n $repo ]] || die "no docs_repo configured — nothing to sync with"
+  if [[ -z $repo ]]; then
+    [[ $quiet == 1 ]] && return 0
+    die "no docs_repo configured — nothing to sync with"
+  fi
 
   local work="$DIR/cache/docs"
   if [[ -d $work/.git ]]; then
-    git -C "$work" fetch --quiet origin || die "cannot reach $repo"
+    if ! git -C "$work" fetch --quiet origin; then
+      [[ $quiet == 1 ]] && return 0
+      die "cannot reach $repo"
+    fi
     git -C "$work" reset --hard --quiet \
       "origin/$(git -C "$work" rev-parse --abbrev-ref origin/HEAD | sed 's|origin/||')"
   else
@@ -641,9 +659,23 @@ cmd_sync() {
 
   local remote="$work/$path/notes"
   mkdir -p "$remote" "$DIR/notes"
+  date +%s >"$stamp"
+
+  if [[ $pull_only == 1 ]]; then
+    local got=0
+    for f in "$remote"/*.md; do
+      [[ -f $f ]] || continue
+      base=$(basename "$f")
+      [[ -f $DIR/notes/$base || -f $DIR/notes/archive/$base ]] && continue
+      cp "$f" "$DIR/notes/$base"
+      got=$((got + 1))
+    done
+    [[ $quiet == 1 ]] || echo "$got new note(s)"
+    return 0
+  fi
 
   # Anything archived locally comes out of the shared repository too.
-  local removed=0
+  local removed=0 f base
   if [[ -d $DIR/notes/archive ]]; then
     for f in "$DIR"/notes/archive/*.md; do
       [[ -f $f ]] || continue
@@ -655,7 +687,7 @@ cmd_sync() {
     done
   fi
 
-  local pulled=0 pushed=0 f base
+  local pulled=0 pushed=0 base
   for f in "$remote"/*.md; do
     [[ -f $f ]] || continue
     base=$(basename "$f")

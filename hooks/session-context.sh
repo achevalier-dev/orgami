@@ -27,6 +27,10 @@ JSON=0
 
 cd "${CURSOR_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}" 2>/dev/null || true
 
+# Take whatever teammates have written since the last session, at most once
+# every half hour, and never let a slow network hold up the session.
+timeout 6 "$ORGAMI" sync --pull --max-age 30 --quiet >/dev/null 2>&1 || true
+
 brief=$("$ORGAMI" brief 2>/dev/null) || exit 0
 [[ -n $brief ]] || { [[ $JSON == 1 ]] && echo '{}'; exit 0; }
 

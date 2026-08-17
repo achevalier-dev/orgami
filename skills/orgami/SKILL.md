@@ -82,6 +82,10 @@ for everyone the next time `orgami doc` runs.
 
 ## Shared team memory
 
+Notes arrive on their own — the session hook pulls what the team has merged
+before this conversation started, so what you were given is current. Sending is
+the part that needs the user: `orgami sync` publishes under their name.
+
 `orgami note` records something the team should not have to rediscover — a
 gotcha, a cause found the hard way, a constraint that is not written down
 anywhere. Notes are one file each, synced through the docs repo, and they appear

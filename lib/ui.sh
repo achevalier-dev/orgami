@@ -1,0 +1,254 @@
+# The interactive front door: `orgami` with no arguments, and `orgami init`
+# with no arguments. Every flag form still works without gum for scripts.
+
+ui_need_gum() {
+  command -v gum >/dev/null && return 0
+  cat >&2 <<'EOF'
+orgami: the interactive screens need gum (https://github.com/charmbracelet/gum)
+
+  arch:     sudo pacman -S gum
+  mac:      brew install gum
+
+Everything works without it, with flags:
+  orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
+EOF
+  return 1
+}
+
+ui_title() { gum style --foreground 4 --bold "$1"; }
+ui_dim() { gum style --foreground 8 "$1"; }
+
+ui_pause() {
+  echo
+  gum input --placeholder "enter to go back" >/dev/null 2>&1 || true
+}
+
+# ---------------------------------------------------------------- setup wizard
+
+ui_pick_org() {
+  local logins
+  logins=$(gum spin --show-output --spinner dot --title "reading your GitHub organizations…" -- \
+    bash -c 'gh api user/orgs --jq ".[].login" 2>/dev/null; gh api user --jq .login' |
+    grep -v '^$' | sort -u)
+  local n
+  n=$(wc -l <<<"$logins")
+  if [[ $n -gt 8 ]]; then
+    printf '%s\n' "$logins" "type another…" |
+      gum filter --placeholder "which GitHub organization?" --height 12
+  else
+    # shellcheck disable=SC2046
+    gum choose --header "Which GitHub organization?" $(printf '%s ' "$logins") "type another…"
+  fi
+}
+
+ui_pick_docs_repo() {
+  local org=$1 repos
+  repos=$(gum spin --show-output --spinner dot --title "reading $org's repositories…" -- \
+    bash -c "gh api 'orgs/$org/repos?per_page=100&sort=pushed' --jq '.[] | select(.archived | not) | .name' 2>/dev/null ||
+             gh api 'users/$org/repos?per_page=100&sort=pushed' --jq '.[].name' 2>/dev/null || true")
+  printf 'keep the reports local — no docs repo\n%s\ntype a git URL…\n' "$repos" |
+    grep -v '^$' |
+    gum filter --placeholder "where should the weekly report be committed?" --height 12
+}
+
+cmd_setup() {
+  ui_need_gum || return 1
+  need gh
+  gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
+
+  echo
+  ui_title "Add a company to orgami"
+  ui_dim "One directory per client under $ORGAMI_HOME. Nothing leaves your machine until you publish."
+  echo
+
+  local org
+  org=$(ui_pick_org) || return 1
+  [[ -n $org ]] || return 1
+  if [[ $org == "type another…" ]]; then
+    org=$(gum input --placeholder "github organization login" --prompt "org: ") || return 1
+  fi
+  [[ -n $org ]] || return 1
+
+  gh api "orgs/$org" >/dev/null 2>&1 || gh api "users/$org" >/dev/null 2>&1 ||
+    die "cannot read '$org' with the current gh token"
+
+  local company
+  company=$(gum input --prompt "short name for this client: " --value "$org") || return 1
+  company=${company// /-}
+  [[ -n $company ]] || return 1
+  [[ -f $(company_dir "$company")/config.json ]] &&
+    die "'$company' already exists — orgami list"
+
+  local docs_repo="" docs_path="orgami" choice
+  choice=$(ui_pick_docs_repo "$org") || return 1
+  case $choice in
+    "keep the reports local"*) docs_repo="" ;;
+    "type a git URL…")
+      docs_repo=$(gum input --placeholder "git@github.com:org/handbook.git" --prompt "docs repo: ") || return 1
+      ;;
+    "") ;;
+    *) docs_repo="git@github.com:$org/$choice.git" ;;
+  esac
+
+  if [[ -n $docs_repo ]]; then
+    docs_path=$(gum input --prompt "path inside that repo: " --value "orgami") || return 1
+  fi
+
+  local exclude="[]" patterns
+  if gum confirm --default=no "Skip some repositories?" --affirmative "yes" --negative "no"; then
+    patterns=$(gum input --prompt "skip repos matching: " \
+      --placeholder "archived-, -sandbox, ^test") || true
+    [[ -n $patterns ]] && exclude=$(jq -Rc 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))' <<<"$patterns")
+  fi
+
+  local model
+  model=$(gum choose --header "Which model writes the recap?" \
+    "claude-sonnet-5" "claude-opus-5" "claude-haiku-4-5-20251001") || return 1
+
+  local dir
+  dir=$(company_dir "$company")
+  mkdir -p "$dir"/{cache/prs,cache/repos,cache/src,reports,map}
+  jq -n --arg company "$company" --arg org "$org" --arg docs_repo "$docs_repo" \
+    --arg docs_path "$docs_path" --argjson exclude "$exclude" --arg model "$model" \
+    '{company: $company, org: $org, docs_repo: $docs_repo, docs_path: $docs_path,
+      exclude: $exclude, include: [], report_model: $model}' >"$dir/config.json"
+
+  mkdir -p "$ORGAMI_HOME"
+  [[ -f $ORGAMI_HOME/config.json ]] || echo '{}' >"$ORGAMI_HOME/config.json"
+  local tmp
+  tmp=$(mktemp)
+  jq --arg c "$company" '.default = (.default // $c)' "$ORGAMI_HOME/config.json" >"$tmp"
+  mv "$tmp" "$ORGAMI_HOME/config.json"
+
+  echo
+  gum style --foreground 2 "✓ $company saved to $dir/config.json"
+  echo
+
+  export ORGAMI_COMPANY="$company"
+
+  if gum confirm "Write this week's recap now? (about two minutes)"; then
+    gum spin --spinner dot --title "fetching merged pull requests…" -- \
+      "$ORGAMI_BIN" pull
+    gum spin --spinner dot --title "writing the recap with $model…" -- \
+      "$ORGAMI_BIN" report
+    gum style --foreground 2 "✓ $dir/reports/$(iso_week).md"
+  fi
+
+  if gum confirm "Scan every repo and build the map now? (minutes on a large org)"; then
+    "$ORGAMI_BIN" scan
+    "$ORGAMI_BIN" doc >/dev/null
+    gum style --foreground 2 "✓ $dir/map/ARCHITECTURE.md"
+  fi
+
+  if [[ -f $HOME/.config/systemd/user/orgami-weekly@.service ]] &&
+    gum confirm "Run all of that every Friday?"; then
+    systemctl --user enable --now "orgami-weekly@$company.timer" &&
+      gum style --foreground 2 "✓ orgami-weekly@$company.timer"
+  fi
+
+  echo
+  ui_dim "orgami        the menu"
+  ui_dim "orgami view   browse the map"
+}
+
+# ----------------------------------------------------------------- main menu
+
+ui_status_line() {
+  local dir=$1 line=""
+  local latest
+  latest=$(find "$dir/reports" -name '*.md' 2>/dev/null | sort | tail -1)
+  if [[ -n $latest ]]; then
+    line="last recap $(basename "$latest" .md)"
+  else
+    line="no recap yet"
+  fi
+  if [[ -f $dir/map/graph.json ]]; then
+    line="$line · map from $(jq -r '.generated | .[0:10]' "$dir/map/graph.json")"
+    line="$line · $(jq -r '[.nodes[] | select(.kind == "repo")] | length' "$dir/map/graph.json") repos"
+  else
+    line="$line · no map yet"
+  fi
+  echo "$line"
+}
+
+cmd_menu() {
+  ui_need_gum || { usage; return 1; }
+
+  if [[ -z $(companies) ]]; then
+    ui_title "orgami"
+    ui_dim "Nothing configured yet."
+    echo
+    gum confirm "Add your first company?" && cmd_setup
+    return 0
+  fi
+
+  local company dir action
+  while :; do
+    company=$(current_company 2>/dev/null || true)
+    [[ -n $company ]] || { cmd_setup; continue; }
+    dir=$(company_dir "$company")
+    export ORGAMI_COMPANY="$company"
+
+    clear
+    ui_title "orgami · $company"
+    ui_dim "$(jq -r .org "$dir/config.json") · $(ui_status_line "$dir")"
+    echo
+
+    action=$(gum choose \
+      "browse the map" \
+      "read the latest recap" \
+      "write this week's recap" \
+      "rebuild the map" \
+      "publish to the docs repo" \
+      "switch company" \
+      "add a company" \
+      "quit") || return 0
+
+    case $action in
+      "browse the map")
+        [[ -f $dir/map/graph.json ]] ||
+          { gum style --foreground 3 "no map yet — rebuild it first"; ui_pause; continue; }
+        "$ORGAMI_BIN" view
+        ;;
+      "read the latest recap")
+        local latest
+        latest=$(find "$dir/reports" -name '*.md' 2>/dev/null | sort | tail -1)
+        [[ -n $latest ]] ||
+          { gum style --foreground 3 "no recap yet"; ui_pause; continue; }
+        if command -v glow >/dev/null; then
+          glow -p "$latest"
+        else
+          gum pager <"$latest"
+        fi
+        ;;
+      "write this week's recap")
+        gum spin --spinner dot --title "fetching merged pull requests…" -- \
+          "$ORGAMI_BIN" pull || { gum style --foreground 1 "pull failed"; ui_pause; continue; }
+        gum spin --spinner dot --title "writing the recap…" -- \
+          "$ORGAMI_BIN" report || { gum style --foreground 1 "report failed"; ui_pause; continue; }
+        gum style --foreground 2 "✓ reports/$(iso_week).md"
+        ui_pause
+        ;;
+      "rebuild the map")
+        "$ORGAMI_BIN" scan && "$ORGAMI_BIN" doc >/dev/null &&
+          gum style --foreground 2 "✓ map/ARCHITECTURE.md"
+        ui_pause
+        ;;
+      "publish to the docs repo")
+        "$ORGAMI_BIN" publish || true
+        ui_pause
+        ;;
+      "switch company")
+        local pick
+        # shellcheck disable=SC2046
+        pick=$(gum choose --header "Which company?" $(companies | tr '\n' ' ')) || continue
+        [[ -n $pick ]] && cmd_use "$pick" >/dev/null
+        ;;
+      "add a company")
+        cmd_setup
+        ui_pause
+        ;;
+      quit) return 0 ;;
+    esac
+  done
+}

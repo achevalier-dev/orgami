@@ -9,7 +9,7 @@ BIN_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/orgami"
 UNIT_DIR="$HOME/.config/systemd/user"
 
-for tool in jq gh git fzf; do
+for tool in jq gh git fzf gum; do
   command -v "$tool" >/dev/null || echo "warning: $tool is not on PATH" >&2
 done
 command -v claude >/dev/null ||
@@ -38,10 +38,6 @@ esac
 cat <<'EOF'
 
 next:
-  orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
-  orgami pull && orgami report
-  orgami scan && orgami doc && orgami view
-
-weekly, per company:
-  systemctl --user enable --now orgami-weekly@acme.timer
+  orgami init    add your first company, step by step
+  orgami         the menu
 EOF

@@ -15,6 +15,8 @@ usage() {
   cat <<'EOF'
 orgami — weekly PR recaps and a map of an organization's repositories
 
+  orgami                                the menu
+  orgami init                           add a company, step by step
   orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
   orgami use <company>                  make it the default
   orgami list                           companies configured here
@@ -35,12 +37,25 @@ Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.
 EOF
 }
 
-cmd=${1:-help}
+cmd=${1:-}
 [[ $# -gt 0 ]] && shift
+
+# Bare `orgami` opens the menu when there is a terminal to draw it on.
+if [[ -z $cmd ]]; then
+  if [[ -t 0 && -t 1 ]]; then cmd=menu; else cmd=help; fi
+fi
+
+# Bare `orgami init` walks you through it instead of demanding flags.
+if [[ $cmd == init && $# -eq 0 && -t 0 && -t 1 ]]; then cmd=setup; fi
 
 case $cmd in
   init | use | list)
     source "$ROOT/lib/init.sh"
+    "cmd_$cmd" "$@"
+    ;;
+  menu | setup)
+    source "$ROOT/lib/init.sh"
+    source "$ROOT/lib/ui.sh"
     "cmd_$cmd" "$@"
     ;;
   pull)

@@ -8,7 +8,7 @@ Code before it touches a client's code.
 One directory per company under `~/.orgami`, so a freelancer can keep several
 clients side by side without mixing them.
 
-No daemon, no database, no web app. Bash, `gh`, `jq`, `fzf`, a systemd user
+No daemon, no database, no web app. Bash, `gh`, `jq`, `fzf`, `gum`, a systemd user
 timer, and plain files that diff cleanly in git.
 
 *org + origami — folding a flat sheet of repositories into a shape you can see.*
@@ -20,9 +20,23 @@ git clone https://github.com/achevalier-dev/orgami ~/orgami
 cd ~/orgami && ./install.sh
 ```
 
-Needs `gh` (authenticated), `jq`, `git`, `fzf`, and `claude` on PATH.
+Needs `gh` (authenticated), `jq`, `git`, `fzf`, `gum` and `claude` on PATH.
 
 ## Use
+
+```bash
+orgami        # the menu
+orgami init   # add a company, step by step
+```
+
+`orgami init` picks the organization from the ones your `gh` token can see,
+lists that org's repos to choose where the report gets committed, and offers to
+run the first recap, the first scan and the weekly timer before it exits. Bare
+`orgami` opens a menu over whichever company is current — browse the map, read
+the last recap, write this week's, rebuild, publish, switch client.
+
+Both need [gum](https://github.com/charmbracelet/gum). Everything below works
+without it, and is what the timer and any script should use:
 
 ```bash
 orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
@@ -134,6 +148,7 @@ lib/report.sh          stats + Claude -> reports/
 lib/scan.sh            repo scan -> map/graph.json
 lib/doc.sh             graph.json -> ARCHITECTURE.md
 lib/view.sh            fzf TUI, query, open
+lib/ui.sh              the menu and the setup wizard
 lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
 skills/orgami/         the Claude Code skill

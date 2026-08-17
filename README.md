@@ -60,7 +60,7 @@ without it, and is what the timer and any script should use:
 orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
 orgami pull            # cache this week's merged PRs
 orgami report          # write reports/2026-W33.md
-orgami scan            # shallow-clone every repo, rebuild the map
+orgami scan            # clone every repo in parallel, rebuild the map
 orgami doc             # render map/ARCHITECTURE.md
 orgami view            # browse the map in the terminal
 orgami publish         # commit both into the docs repo
@@ -98,8 +98,9 @@ neither reliably, and a recap nobody trusts the numbers in is not worth writing.
 
 ## The map
 
-`orgami scan` shallow-clones every non-archived, non-fork repo in the org and
-pattern-matches what is committed:
+`orgami scan` shallow-clones every non-archived, non-fork repo in the org — eight
+at a time behind a progress bar, `--jobs N` to change that — and pattern-matches
+what is committed:
 
 | Looking for | Where |
 |---|---|

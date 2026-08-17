@@ -176,14 +176,21 @@ cmd_setup() {
   # no use to anyone. Ctrl-C leaves the config in place and stops cleanly.
   trap 'echo; ui_dim "stopped — $company is saved, finish it later with: orgami"; exit 0' INT
 
-  local week
+  local week prs
   week=$(iso_week)
 
   if gum spin --spinner dot --title "fetching merged pull requests…" -- "$ORGAMI_BIN" pull; then
-    if gum spin --spinner dot --title "writing the $week recap with $model…" -- "$ORGAMI_BIN" report; then
+    # Set up on a Monday and this week is empty. Recap the last full week instead.
+    prs=$(jq '.prs | length' "$dir/cache/prs/$week.json" 2>/dev/null || echo 0)
+    if [[ ${prs:-0} -eq 0 ]]; then
+      week=$(date -u -d "$(week_start 1)" +%G-W%V)
+      gum spin --spinner dot --title "nothing merged yet this week — fetching $week…" -- \
+        "$ORGAMI_BIN" pull --last 1 || true
+    fi
+    if gum spin --spinner dot --title "writing the $week recap with $model…" -- "$ORGAMI_BIN" report --week "$week"; then
       gum style --foreground 2 "✓ reports/$week.md"
     else
-      gum style --foreground 3 "no recap — nothing merged in $org this week"
+      gum style --foreground 3 "no recap — nothing merged in $org in $week"
     fi
   else
     gum style --foreground 3 "could not read pull requests from $org"

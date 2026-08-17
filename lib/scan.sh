@@ -176,16 +176,78 @@ scan_links() {
   done <"$REPOLIST"
 }
 
+# One repo, start to finish, into its own emit file. Safe to run in parallel.
+scan_repo() {
+  local repo=$1
+  local src="$DIR/cache/src/$repo"
+  EMIT="$EMITDIR/e-$repo.ndjson"
+  : >"$EMIT"
+
+  if [[ -d $src/.git ]]; then
+    git -C "$src" fetch --depth "$DEPTH" --quiet origin 2>/dev/null &&
+      git -C "$src" reset --hard --quiet FETCH_HEAD 2>/dev/null || true
+  else
+    gh repo clone "$ORG/$repo" "$src" -- --depth "$DEPTH" --single-branch --quiet 2>/dev/null || {
+      echo "$repo" >>"$EMITDIR/failed"
+      : >"$EMITDIR/done/$repo"
+      return 0
+    }
+  fi
+
+  local meta lang
+  meta=$(jq -c --arg r "$repo" '.[] | select(.name == $r)
+         | {language, description, private, pushed_at, topics,
+            url: .html_url, size_kb: .size}' "$REPOSJSON")
+  emit_node "repo:$repo" repo "$repo" "$meta"
+
+  lang=$(jq -r '.language // empty' <<<"$meta")
+  [[ -n $lang ]] && {
+    emit_node "lang:$lang" lang "$lang"
+    emit_edge "repo:$repo" "lang:$lang" written-in ""
+  }
+
+  scan_deploy "$repo" "$src"
+  scan_links "$repo" "$src"
+  : >"$EMITDIR/done/$repo"
+}
+
+scan_draw() {
+  local done=$1 total=$2 cols width filled pct f="" e="" i
+  cols=$(tput cols 2>/dev/null || echo 80)
+  width=$((cols - 30))
+  ((width > 44)) && width=44
+  ((width < 8)) && width=8
+  ((total > 0)) || total=1
+  filled=$((done * width / total))
+  pct=$((done * 100 / total))
+  for ((i = 0; i < filled; i++)); do f+="█"; done
+  for ((i = filled; i < width; i++)); do e+="░"; done
+  printf '\r\033[2K  \033[38;5;12m%s\033[38;5;238m%s\033[0m  %3d%%  %d/%d repos' \
+    "$f" "$e" "$pct" "$done" "$total" >&2
+}
+
+scan_progress() {
+  local total=$1 pid=$2 done
+  while kill -0 "$pid" 2>/dev/null; do
+    done=$(find "$EMITDIR/done" -type f 2>/dev/null | wc -l)
+    scan_draw "$done" "$total"
+    sleep 0.25
+  done
+  scan_draw "$(find "$EMITDIR/done" -type f 2>/dev/null | wc -l)" "$total"
+  printf '\n' >&2
+}
+
 cmd_scan() {
   load_company
   need gh
   need git
 
-  local only="" depth=1
+  local only="" depth=1 jobs=8
   while [[ $# -gt 0 ]]; do
     case $1 in
       --only) only=$2; shift 2 ;;
       --depth) depth=$2; shift 2 ;;
+      --jobs | -j) jobs=$2; shift 2 ;;
       *) die "unknown flag: $1" ;;
     esac
   done
@@ -213,52 +275,41 @@ cmd_scan() {
   [[ -n $only ]] && echo "$only" >"$REPOLIST"
 
   local total
-  total=$(wc -l <"$REPOLIST")
-  log "$total active repos"
+  total=$(grep -c . "$REPOLIST" || true)
+  [[ $total -gt 0 ]] || die "no repositories to scan in $ORG"
+  ((jobs > total)) && jobs=$total
+  log "$total active repos · $jobs at a time"
 
-  EMIT=$(mktemp)
-  local n=0 repo src
+  EMITDIR=$(mktemp -d)
+  mkdir -p "$EMITDIR/done"
+  : >"$EMITDIR/failed"
+  DEPTH=$depth
+  REPOSJSON=$repos
+  export EMITDIR DEPTH ORG DIR REPOLIST REPOSJSON NOISE_DOMAINS
+  export -f scan_repo scan_deploy scan_links emit_node emit_edge emit_tool emit_hosts_from
 
-  while read -r repo; do
-    [[ -n $repo ]] || continue
-    n=$((n + 1))
-    src="$DIR/cache/src/$repo"
-    printf '\r  [%d/%d] %-40s' "$n" "$total" "$repo" >&2
+  xargs -a "$REPOLIST" -P "$jobs" -I{} bash -c 'scan_repo "$1"' _ {} &
+  local xpid=$!
+  if [[ -t 2 ]]; then
+    scan_progress "$total" "$xpid"
+  fi
+  wait "$xpid" 2>/dev/null || true
 
-    if [[ -d $src/.git ]]; then
-      git -C "$src" fetch --depth "$depth" --quiet origin 2>/dev/null || true
-      git -C "$src" reset --hard --quiet FETCH_HEAD 2>/dev/null || true
-    else
-      gh repo clone "$ORG/$repo" "$src" -- --depth "$depth" --single-branch --quiet 2>/dev/null ||
-        { log "skip $repo (clone failed)"; continue; }
-    fi
-
-    local meta
-    meta=$(jq -c --arg r "$repo" '.[] | select(.name == $r)
-           | {language, description, private, pushed_at, topics,
-              url: .html_url, size_kb: .size}' "$repos")
-    emit_node "repo:$repo" repo "$repo" "$meta"
-
-    local lang
-    lang=$(jq -r '.language // empty' <<<"$meta")
-    [[ -n $lang ]] && {
-      emit_node "lang:$lang" lang "$lang"
-      emit_edge "repo:$repo" "lang:$lang" written-in ""
-    }
-
-    scan_deploy "$repo" "$src"
-    scan_links "$repo" "$src"
-  done <"$REPOLIST"
-  printf '\r%-60s\r' '' >&2
+  local failed
+  failed=$(grep -c . "$EMITDIR/failed" || true)
+  [[ $failed -gt 0 ]] &&
+    log "could not clone: $(tr '\n' ' ' <"$EMITDIR/failed")"
 
   local out="$DIR/map/graph.json"
-  jq -s --arg company "$COMPANY" --arg org "$ORG" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{company: $company, org: $org, generated: $at,
-      nodes: ([.[] | select(.t == "node") | del(.t)]
-              | group_by(.id) | map(.[0] + {meta: (map(.meta) | add)})),
-      edges: ([.[] | select(.t == "edge") | del(.t)] | unique)}' \
-    "$EMIT" >"$out"
+  find "$EMITDIR" -name 'e-*.ndjson' -exec cat {} + |
+    jq -s --arg company "$COMPANY" --arg org "$ORG" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '{company: $company, org: $org, generated: $at,
+        nodes: ([.[] | select(.t == "node") | del(.t)]
+                | group_by(.id) | map(.[0] + {meta: (map(.meta) | add)})),
+        edges: ([.[] | select(.t == "edge") | del(.t)] | unique)}' \
+      >"$out"
 
-  rm -f "$EMIT" "$REPOLIST"
+  rm -rf "$EMITDIR"
+  rm -f "$REPOLIST"
   echo "$out  ($(jq '.nodes | length' "$out") nodes, $(jq '.edges | length' "$out") edges)"
 }

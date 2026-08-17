@@ -94,12 +94,22 @@ cmd_note_auto() {
   esac
 
   source "$ROOT/lib/notes.sh"
-  mkdir -p "$DIR/notes/draft"
+
+  # notes_autopublish sends what was drafted straight to the team. Off by
+  # default: a note carries the user's name, so publishing one unattended is
+  # their call to make, not the tool's.
+  local publish=0 dest="$DIR/notes/draft"
+  if [[ $(cfg notes_autopublish false) == true ]]; then
+    publish=1
+    dest="$DIR/notes"
+  fi
+  mkdir -p "$dest"
+
   local author stamp id file
   author=$(notes_author)
   stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   id="$(date -u +%Y%m%d-%H%M%S)-$author-$(notes_slug "$(head -1 <<<"$body")")"
-  file="$DIR/notes/draft/$id.md"
+  file="$dest/$id.md"
 
   {
     echo "---"
@@ -115,6 +125,11 @@ cmd_note_auto() {
   } >"$file"
 
   echo "$file"
+
+  # Straight out to the docs repo — as a pull request when the company asks for
+  # review, as a push when it does not.
+  [[ $publish == 1 ]] || return 0
+  cmd_sync --quiet >/dev/null 2>&1 || true
 }
 
 autonote_pending() {
@@ -171,4 +186,41 @@ cmd_drafts() {
   [[ $kept -gt 0 ]] &&
     echo "they land in the runbooks at the next 'orgami doc', and reach the team at the next 'orgami sync'"
   return 0
+}
+
+# orgami autonote [on|off|publish|drafts] — how much of this happens by itself.
+cmd_autonote() {
+  load_company
+  local want=${1:-}
+  local tmp
+
+  case $want in
+    "")
+      local on="on" mode="drafts for review"
+      [[ ${ORGAMI_AUTONOTE:-1} == 0 ]] && on="off (ORGAMI_AUTONOTE=0)"
+      [[ $(cfg notes_autopublish false) == true ]] && mode="published straight to the team"
+      echo "$COMPANY: $on, $mode"
+      return 0
+      ;;
+    publish)
+      tmp=$(mktemp)
+      jq '.notes_autopublish = true' "$DIR/config.json" >"$tmp" && mv "$tmp" "$DIR/config.json"
+      echo "notes written at the end of a session now go to the team without review."
+      [[ $(cfg notes_review false) == true ]] &&
+        echo "They open as pull requests, because notes_review is on." ||
+        echo "They are pushed directly. Turn on notes_review to have them open as pull requests instead."
+      ;;
+    drafts | review)
+      tmp=$(mktemp)
+      jq '.notes_autopublish = false' "$DIR/config.json" >"$tmp" && mv "$tmp" "$DIR/config.json"
+      echo "notes now wait in 'orgami drafts' until you keep them."
+      ;;
+    on)
+      echo "on by default — nothing to do. ORGAMI_AUTONOTE=0 in the environment turns it off."
+      ;;
+    off)
+      echo "set ORGAMI_AUTONOTE=0 in your shell profile to stop reading sessions back."
+      ;;
+    *) die "usage: orgami autonote [publish|drafts|off]" ;;
+  esac
 }

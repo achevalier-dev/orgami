@@ -165,12 +165,23 @@ orgami sync
 ```
 
 Mostly you will not type that. When a session ends, orgami reads back what was
-said and drafts a note if the session established something durable that is not
-visible in the code. Nothing is published unattended — drafts wait in
-`notes/draft/`, the next session says how many, and `orgami drafts` keeps or
-throws each one away. Most sessions produce nothing, which is the intended
-answer; the prompt is told so. Five a day at most, credentials stripped before
-the transcript leaves the machine, and `ORGAMI_AUTONOTE=0` turns it off.
+said and writes a note if the session established something durable that is not
+visible in the code. Most sessions produce nothing, which is the intended answer;
+the prompt is told so. Five a day at most, credentials stripped before the
+transcript leaves the machine, and `ORGAMI_AUTONOTE=0` turns it off.
+
+```bash
+orgami autonote            # what it does today
+orgami autonote publish    # send them to the team as they are written
+orgami autonote drafts     # hold them for you instead
+```
+
+Held is the default: a note carries your name, so publishing one unattended is
+your call. Held notes wait in `notes/draft/`, the next session says how many are
+waiting, and `orgami drafts` keeps or throws each one away. Set to publish, they
+go out as they are written — as a pull request when `notes_review` is on, which
+is the combination worth having: nobody writes the note, and the team can still
+turn one down.
 
 Notes are screened for credentials and for any *other* client configured on the
 machine before they are written, and again before anything is pushed. They can

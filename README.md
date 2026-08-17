@@ -1,15 +1,26 @@
 # orgami
 
-A weekly recap of every pull request an organization merged, and a map of how
-its repositories, deployment tooling and servers fit together — both readable in
-the terminal, both committed to a docs repo, and both loaded as context by Claude
-Code before it touches a client's code.
+**Know a client's organization before you touch its code.** orgami maps every
+repo in a GitHub org — what each one is, how to run it, what it talks to, where
+it deploys — recaps every pull request the org merged each week, and hands all of
+it to your coding agent at session start.
 
-One directory per company under `~/.orgami`, so a freelancer can keep several
-clients side by side without mixing them.
+<!-- Demo: record it with `vhs docs/demo.tape`, then replace this comment with:
+     ![orgami](docs/demo.gif) -->
 
-No daemon, no database, no web app. Bash, `gh`, `jq`, `fzf`, `gum`, a systemd user
-timer, and plain files that diff cleanly in git.
+- **A map you can check.** Every edge carries the `file:line` it came from, so
+  nothing in it is a model's guess. Missing edge means "not found in committed
+  configuration", never "not connected".
+- **A weekly recap you can trust the numbers in.** `jq` computes every figure;
+  Claude only writes the prose, and is told the numbers rather than asked to
+  count.
+- **Context your agent already has.** Open Claude Code or Cursor in a mapped
+  checkout and the repo's stack, run and test commands, linked repos and the
+  team's notes are in the session before you type.
+- **One directory per company**, so a freelancer keeps several clients side by
+  side without mixing them.
+- **No daemon, no database, no web app.** Bash, `gh`, `jq`, `fzf`, `gum`, a
+  weekly timer, and plain files that diff cleanly in git.
 
 *org + origami — folding a flat sheet of repositories into a shape you can see.*
 
@@ -37,140 +48,9 @@ gh auth login
 orgami init     # map an organization — or `orgami join` to pick up one that exists
 ```
 
-That is the whole install. What it does, so nothing is a surprise:
-
-- installs any of `git gh jq fzf gum python3` you are missing, through Homebrew,
-  pacman, apt, dnf or winget — adding the GitHub CLI and Charm apt repositories
-  when the distribution needs them
-- clones orgami to `~/.local/share/orgami` and links `orgami` into `~/.local/bin`
-- **Claude Code**, if present: adds the marketplace and installs the plugin, so
-  the skill, `/orgami:context`, `/orgami:note` and the session hook come with it
-- **Cursor**, if present: installs the `sessionStart` hook for every project and
-  registers the MCP server in `~/.cursor/mcp.json`
-- installs the weekly timer units
-
-`--dry-run` prints every step without touching anything. `--no-deps` and
-`--no-editors` skip those parts. On Windows the PowerShell script prefers WSL
-when it is installed, and otherwise sets up Git for Windows and runs the same
-bash installer inside it.
-
-<details>
-<summary>Installing the pieces by hand instead</summary>
-
-### 1. Dependencies
-### 1. Dependencies
-
-Pick the line for your machine. `git` is assumed; everything else is one command.
-
-**macOS** — [Homebrew](https://brew.sh):
-
-```bash
-brew install gh jq fzf gum
-```
-
-**Arch, Omarchy, Manjaro**:
-
-```bash
-sudo pacman -S github-cli jq fzf gum python
-```
-
-**Debian, Ubuntu, WSL** — `gh` and `gum` ship from their own repositories:
-
-```bash
-sudo apt update && sudo apt install -y jq fzf python3 curl
-
-# GitHub CLI
-(type -p wget >/dev/null || sudo apt install -y wget) \
-  && sudo mkdir -p -m 755 /etc/apt/keyrings \
-  && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-     | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null \
-  && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-     | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null \
-  && sudo apt update && sudo apt install -y gh
-
-# gum
-sudo mkdir -p /etc/apt/keyrings \
-  && curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg \
-  && echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" \
-     | sudo tee /etc/apt/sources.list.d/charm.list >/dev/null \
-  && sudo apt update && sudo apt install -y gum
-```
-
-**Fedora**:
-
-```bash
-sudo dnf install -y gh jq fzf gum python3
-```
-
-**Windows** — orgami is bash. Use [WSL](https://learn.microsoft.com/windows/wsl/install),
-then follow the Ubuntu line above inside it:
-
-```powershell
-wsl --install
-```
-
-Git Bash also works for the CLI, but WSL is the path with a working weekly
-schedule. If you drive orgami from Windows-native Cursor or Claude Code, point
-hook commands at `wsl.exe bash -lc "..."`.
-
-Nothing above is guessed at install time: `install.sh` checks each tool and
-prints the exact command for *your* package manager if one is missing.
-
-| Tool | Needed for |
-|---|---|
-| `gh`, `jq`, `git` | everything |
-| `fzf` | `orgami view`, the terminal map browser |
-| `gum` | `orgami init` and the menu — flags work without it |
-| `python3` | `orgami mcp`, the MCP server for other editors |
-| `claude` | `orgami report` only — the weekly recap and decision mining |
-
-### 2. Sign in to GitHub
-
-```bash
-gh auth login
-```
-
-### 3. Install orgami
-
-**In Claude Code** — this also gives you the skill, `/orgami:context`, `/orgami:note`
-and the session hook:
-
-```
-/plugin marketplace add achevalier-dev/orgami
-/plugin install orgami@orgami
-```
-
-then, once, to put the CLI on your PATH:
-
-```bash
-~/.claude/plugins/marketplaces/orgami/install.sh
-```
-
-**Anywhere else** — Cursor, opencode, a plain terminal, a server that only runs
-the weekly job:
-
-```bash
-git clone https://github.com/achevalier-dev/orgami ~/orgami
-cd ~/orgami && ./install.sh
-```
-
-### 4. Point it at an organization
-
-```bash
-orgami init     # map one yourself — pick the org, it does the rest
-orgami join     # or pick up one a colleague already mapped, no scan needed
-```
-
-### 5. Optional, once per organization
-
-```bash
-orgami schedule                # weekly, on systemd or launchd, cron line elsewhere
-orgami agents --cursor-hook    # Cursor injects the context every session
-orgami mcp --config cursor     # or opencode, codex, windsurf, zed, vscode
-```
-
-</details>
+`--dry-run` prints every step without touching anything. Doing it by hand, or on
+a machine the bootstrap cannot cover, is in
+**[docs/install.md](docs/install.md)**.
 
 ## Use
 
@@ -181,30 +61,15 @@ orgami init   # add a company, step by step
 
 `orgami init` picks the organization from the ones your `gh` token can see, then
 asks where the weekly report should be committed — an existing repo in that org,
-a new one it creates for you (`orgami-reports` by default, private or public),
-a git URL you type, or nowhere at all. It then builds the thing: this week's
-recap, a scan of every repo, the architecture doc, and a first publish if you
-gave it a docs repo. Ctrl-C stops the build and keeps the config. The last
-question is whether to run it weekly. Bare
-`orgami` opens a menu over whichever company is current — browse the map, read
-the last recap, write this week's, rebuild, publish, switch org.
+a new one it creates for you (`orgami-reports` by default, private or public), a
+git URL you type, or nowhere at all. It then builds the thing: this week's recap,
+a scan of every repo, the architecture doc, and a first publish if you gave it a
+docs repo. Ctrl-C stops the build and keeps the config. The last question is
+whether to run it weekly. Bare `orgami` opens a menu over whichever company is
+current — browse the map, read the last recap, write this week's, rebuild,
+publish, switch org.
 
-If the token sees more organizations than you care about, narrow the picker:
-
-```bash
-ORGAMI_ORGS="acme-inc beta-corp" orgami init
-```
-
-or keep it permanently in `~/.orgami/config.json`:
-
-```json
-{ "orgs": ["acme-inc", "beta-corp"] }
-```
-
-"type another…" still reaches every other org.
-
-Both need [gum](https://github.com/charmbracelet/gum). Everything below works
-without it, and is what the timer and any script should use:
+Every step is also a command, which is what the timer and any script should use:
 
 ```bash
 orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
@@ -220,15 +85,18 @@ orgami publish         # commit both into the docs repo
 schedule` — a systemd user timer on Linux, a launchd agent on macOS, and a cron
 line to paste anywhere else. `orgami schedule --off` stops it.
 
-Add the next client with another `orgami init`. Switch the default with
-`orgami use beta-corp`, or set `ORGAMI_COMPANY=beta-corp` for a single command.
+Add the next client with another `orgami init`. Switch the default with `orgami
+use beta-corp`, or set `ORGAMI_COMPANY=beta-corp` for a single command. If the
+token sees more organizations than you care about, narrow the picker with
+`ORGAMI_ORGS="acme-inc beta-corp"`, or keep `{ "orgs": [...] }` in
+`~/.orgami/config.json`.
 
 ## The weekly recap
 
 `orgami pull` pages the GitHub GraphQL search API for every PR the org merged
-that week — body, diff size, labels, reviews, and review threads — and caches
-the raw response under `cache/prs/`. Re-running a week overwrites only that
-week's file.
+that week — body, diff size, labels, reviews, and review threads — and caches the
+raw response under `cache/prs/`. Re-running a week overwrites only that week's
+file.
 
 `orgami report` then splits the work in two, and the split is the point:
 
@@ -246,310 +114,81 @@ neither reliably, and a recap nobody trusts the numbers in is not worth writing.
 
 ## The map
 
-`orgami scan` shallow-clones every non-archived, non-fork repo in the org — eight
-at a time behind a progress bar, `--jobs N` to change that — and pattern-matches
-what is committed:
-
-| Looking for | Where |
-|---|---|
-| Deployment tooling | `.github/workflows` actions, `Dockerfile`, `config/deploy.yml` (Kamal), `fly.toml`, `vercel.json`, `netlify.toml`, `render.yaml`, `serverless.yml`, `Chart.yaml`, `Procfile`, `*.tf`, `ansible.cfg`, Kubernetes manifests, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/config.yml` |
-| Servers and endpoints | Kamal `servers:`, Fly app names, Kubernetes ingress hosts, `.env.example` |
-| Backing services | `docker-compose.yml` images, `*_URL` / `*_HOST` names in `.env.example` |
-| Repo-to-repo links | `github.com/org/other`, `ghcr.io/org/other`, `@org/other`, and dependency manifests naming a sibling repo |
-| What a repo is | framework (Next.js, NestJS, Express, Rails, Django, FastAPI, Parse, Go, …), package manager, runtime version |
-| How to work on it | `package.json` scripts, Makefile targets, `bin/setup`-style scripts, Procfile process types |
-| What it serves | Express/Nest/Fastify routes, Next.js API routes and route handlers, Parse cloud functions, Flask and FastAPI decorators, Rails routes |
-| What it calls | literal URLs in source, matched against the hosts other repos declare as their own |
-| Shared contracts | distinctive environment variables read by more than one repo |
-
-The result is `map/graph.json` — a flat list of nodes and edges, nothing else.
-`ARCHITECTURE.md`, the mermaid diagrams and the terminal view are all rendered
-from it, so there is one source of truth and it diffs cleanly week to week.
+`orgami scan` shallow-clones every non-archived, non-fork repo in the org and
+pattern-matches what is committed — deploy tooling, servers, backing services,
+repo-to-repo references, frameworks, run and test commands, routes, shared
+environment contracts. The result is `map/graph.json`, a flat list of nodes and
+edges; `ARCHITECTURE.md`, the mermaid diagrams and the terminal view are all
+rendered from it.
 
 **Every edge carries the `file:line` it came from.** Nothing in the graph is
-inferred by a model, and every claim can be opened and checked. `orgami doc
---narrate` adds one Claude-written summary paragraph on top — clearly separated
-from the facts underneath it.
-
-What the scan cannot see, it does not invent. Services wired together by runtime
-environment variables, a service mesh, or a shared gateway leave no trace in a
-repository, so a missing edge means "not found in committed configuration" and
-never "not connected".
-
-## The terminal view
-
-`orgami view` lists every node — repos first, then languages, tools, services
-and hosts — with the node's metadata and both directions of its edges in the
-preview pane. Type to filter, `ctrl-o` opens the repo on GitHub, `enter` prints
-the node into your scrollback.
-
-For one node without the TUI:
+inferred by a model, and every claim can be opened and checked.
 
 ```bash
-orgami query thruster
-orgami query kamal
-orgami query 51.158.10.20
+orgami view              # browse it in the terminal
+orgami query thruster    # one node and its edges, as text
 ```
+
+Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),
+`DECISIONS.md` (mined from merged PRs, one fragment per week), `RUNBOOK.md` and
+one runbook per repo, and `coupling.json` (which repos keep changing together).
+Full detail: **[docs/map.md](docs/map.md)**.
 
 ## What an agent reads
 
-With the plugin installed there is nothing to run. Opening Claude Code in a
-mapped checkout injects the short version at session start:
-
-```
-orgami — winit (winitapp), map from 2026-08-17
-
-WinIt-backend — TypeScript, Agenda jobs, Express, Parse SDK, Parse Server
-
-  build: tsc -p tsconfig.build.json
-  test: cross-env NODE_ENV=test ... jest --silent --coverage test/*
-
-linked repos:
-  calls -> Attorney-Portal
-  changes-with <- Close-SMS-Report
-
-team notes on this repo:
-- Parse Dashboard config lives in WinIt-ParseDashboard/index.js, not the fork …
-```
-
-Outside a mapped repo it prints nothing at all. For the whole page:
+With the plugin installed there is nothing to run — opening Claude Code in a
+mapped checkout injects the repo's stack, commands, linked repos and team notes
+at session start, and prints nothing at all outside one. For the whole page:
 
 ```bash
 orgami context          # inside a checkout: that repo. anywhere else: the org.
 orgami context <repo>   # by name
 ```
 
-One command, one screen. The repo page carries the framework, the exact commands
-to run and test it, what it talks to and what talks to it, the endpoints it
-serves, the environment it reads, where it deploys, which repos it usually
-changes with, its recent merged pull requests, and links to any `AGENTS.md` the
-repo already has. Cards are also written to `map/repos/<repo>.md` and published
-with everything else.
-
-Three files sit alongside the map and answer the questions a map cannot:
-
-- **`CONVENTIONS.md`** — every `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md`
-  committed anywhere in the org, with the `.github` repo's copy marked as the
-  org-wide default. An agent reads how this team writes code without opening
-  forty repositories.
-- **`DECISIONS.md`** — durable decisions mined from merged pull requests each
-  week: what was adopted or dropped, what constraint was accepted, what was
-  rejected and why. One fragment per week, so the record only grows. Every
-  bullet carries its pull request.
-- **`RUNBOOK.md` and `runbooks/<repo>.md`** — the operational half. Per repo:
-  how to run it, which workflow ships it and on what trigger, the health
-  endpoint it serves, where its alerts go, what it drags with it when it
-  changes, and what the recaps already recorded as *do not*. A repo with no
-  deploying workflow says so — that is a finding, not a blank. Six note tags
-  (`setup`, `deploy`, `rollback`, `incident`, `gotcha`, `oncall`) file a note
-  straight into the matching section, so the page gets better every time
-  somebody loses an afternoon and writes it down.
-- **`coupling.json`** — which repos keep landing changes together, counted by
-  same-day and same-week co-occurrence, bots excluded. Correlation, not
-  dependency, and labelled as such — but it is the blast radius no static scan
-  can see, and it sharpens every week the timer runs.
-
-`install.sh` links a skill into `~/.claude/skills/orgami/` that teaches Claude to
-run `orgami context` first, cite the evidence line for anything it claims, say
-when the map is stale rather than trusting it silently, distinguish "not found in
-committed configuration" from "not connected", and never run `orgami publish` on
-its own.
-
-There is no MCP server. The CLI plus a skill covers the same ground with less to
-install and less to break; an MCP wrapper is a thin shim over these commands if
-a non-Claude-Code client ever needs one.
-
-## Layout
-
-```
-bin/orgami             dispatcher
-lib/common.sh          paths, config, company selection
-lib/init.sh            init / use / list
-lib/pull.sh            GraphQL fetch of merged PRs
-lib/prs.graphql        the query
-lib/stats.jq           every number in the report
-lib/report.sh          stats + Claude -> reports/
-lib/scan.sh            repo scan -> map/graph.json
-lib/doc.sh             graph.json -> ARCHITECTURE.md
-lib/view.sh            fzf TUI, query, open
-lib/profile.sh         what a repo is: framework, commands, env, routes
-lib/card.sh            repo pages and `orgami context`
-lib/coupling.sh        which repos change together
-lib/mcp.py             the MCP server, standard library only
-lib/agents.sh          AGENTS.md and Cursor rules, MCP config snippets
-lib/ui.sh              the menu and the setup wizard
-lib/publish.sh         commit to the docs repo, weekly runner
-prompts/recap.md       the recap prompt
-prompts/decisions.md   the decision-mining prompt
-hooks/                 the SessionStart hook
-commands/              /orgami:context and /orgami:note
-.claude-plugin/        plugin and marketplace manifests
-skills/orgami/         the Claude Code skill
-lib/schedule.sh        the weekly timer, per platform
-bootstrap.sh           the one-command install for macOS, Linux and WSL
-bootstrap.ps1          the same for Windows
-systemd/               orgami-weekly@.service and .timer
-```
-
-Company state, never in this repo:
-
-```
-~/.orgami/
-  config.json          default company, and an optional "orgs" picker filter
-~/.orgami/<company>/
-  config.json          org, docs repo, include/exclude, model
-  cache/prs/           raw GraphQL responses, one file per week
-  cache/repos/         the org's repo list
-  cache/src/           shallow clones
-  cache/docs/          the docs repo checkout
-  reports/             one markdown recap per week
-  map/graph.json       nodes and edges
-  map/repos.json       one profile per repo
-  map/coupling.json    which repos change together
-  map/ARCHITECTURE.md  rendered from the graph
-  map/CONVENTIONS.md   the org's own agent instructions, gathered
-  map/DECISIONS.md     decisions mined from pull requests, one section per week
-  map/repos/<repo>.md  a page per repo
-  map/decisions/       one fragment per week, assembled into DECISIONS.md
-```
-
-## Other agents
-
-Nothing here is Claude-only. The map is markdown and JSON on disk, and the CLI
-is the interface — only the plugin, the skill and the session hook are specific
-to Claude Code.
-
-**Anything that speaks MCP** — Cursor, opencode, Windsurf, Zed, Codex, VS Code,
-Claude Desktop — gets the map as tools: `orgami_context`, `orgami_search`,
-`orgami_notes`, `orgami_note`, `orgami_query`, `orgami_decisions`,
-`orgami_conventions`.
-
-```bash
-orgami mcp --config cursor      # or opencode, codex, claude-code, windsurf, zed, vscode
-```
-
-That prints the snippet for the client, and `orgami mcp` is the server itself —
-stdio JSON-RPC, Python standard library only, shelling out to the same CLI so
-there is no second implementation to drift. The `orgami_note` tool is described
-to the model as requiring the user's agreement first, the same rule the Claude
-skill carries.
-
-**Cursor** reaches parity with Claude Code, because its `sessionStart` hook can
-return `additional_context`:
-
-```bash
-orgami agents --cursor-hook          # this project
-orgami agents --cursor-hook --user   # every project you open
-```
-
-Cursor then injects the repo's stack, commands, linked repos and team notes at
-the start of every session — regenerated each time, not a snapshot — and stays
-silent outside a mapped checkout. Same script as the Claude Code hook, with
-`--json` for Cursor's output format.
-
-**opencode** cannot do this. Its plugin API has session *events* but no
-documented way to add text to the model's context — only
-`experimental.session.compacting`, which fires on compaction. So opencode reads
-the generated file instead, and the answer there is to keep that file current
-(below).
-
-**Anything that reads `AGENTS.md`** — opencode, Codex, Zed, Jules, Cursor — can
-have the context written straight into the repository:
-
-```bash
-orgami agents            # AGENTS.md, plus .cursor/rules if the repo has .cursor/
-orgami agents --all      # both, explicitly
-```
-
-It writes a marked block and rewrites only that block on later runs, so anything
-you wrote by hand around it survives. These files live in the repo, so commit
-them only if the team wants them there.
-
-A written block is a snapshot, so it drifts as soon as the map moves. Three ways
-to keep it current, and they compose:
-
-```bash
-orgami agents --refresh --workspace ~/Work/acme   # every mapped checkout under a root
-orgami agents --git-hook                          # refresh on merge, checkout, rebase
-```
-
-The workspace is remembered, so later runs are just `orgami agents --refresh`,
-and `orgami weekly` runs it automatically once one is configured. The refresh
-only rewrites blocks that already exist — it never creates a context file in a
-repo that did not ask for one.
+Cursor reaches the same parity through its `sessionStart` hook; anything that
+speaks MCP gets the map as tools; anything that reads `AGENTS.md` can have the
+context written into the repo. See **[docs/agents.md](docs/agents.md)**.
 
 ## Five people, one memory
 
 The map and the recaps are generated. What a team knows is not — the cause
 someone found at 2am, the reason the obvious fix does not work, the step missing
-from the README. `orgami note` records that, and the docs repo syncs it.
+from the README.
 
 ```bash
-orgami note "Parse Dashboard config lives in WinIt-ParseDashboard/index.js,
-             not the fork. Copying it into SSM by hand drops every user's apps[]."
+orgami note "Copying the dashboard config into SSM by hand drops every user's apps[]."
 orgami notes --repo WinIt-backend
 orgami sync
 ```
 
-Three things keep this from turning into a landfill or a leak.
-
-**Nothing shareable gets in.** Before a note is written — and again before
-anything is pushed — it is screened for private keys, AWS and GitHub and Slack
-and Stripe tokens, JWTs, connection strings carrying a password, and
-`secret=`-shaped assignments. It is also screened for the name of any *other*
-client configured on the same machine, because a freelancer's notes are the
-obvious place for one client to learn about another. Either refuses the write
-outright. `orgami notes --check` screens everything already on disk, including
-what arrived from teammates.
-
-Writing a note from inside one client's checkout while another client is the
-current company is refused too, by comparing the checkout's git remote against
-the company's organization.
-
-**A person can review it first.** Set `"notes_review": true` in the company
-config and `orgami sync` opens a pull request instead of committing — one branch
-per author, reused, so syncing twice before review updates the same pull request
-rather than opening another. Notes reach the team only when someone merges.
-
-**It gets pruned.** A note that is now wrong is replaced, not contradicted:
-
-```bash
-orgami note --supersede <old-id> "what is true now"
-orgami stale 120        # notes nobody has touched in four months
-orgami prune --superseded
-```
-
-A superseded note disappears from the repo pages, the notes list and every
-agent's context the moment its replacement lands. `orgami prune` moves it to
-`notes/archive/` — kept on disk, removed from the shared repository on the next
-sync. Nothing is ever deleted outright.
-
-Run inside a checkout, a note attaches itself to that repo, and from then on it
-appears on the repo's page — so the next person's agent reads it before touching
-the code. Each note is its own file, named by timestamp and author, so five
-people writing at once never produce a conflict. `orgami sync` runs on its own as
-part of `orgami weekly`.
-
-A colleague does not need to scan anything, or know where the map lives:
-
-```bash
-orgami join
-```
-
-Pick the organization and it finds the repo that already holds a map — probing
-every repo in the org in parallel, a couple of seconds — then pulls the map, the
-cards, the conventions, the decisions and every note out of it. One command
-instead of forty clones. Only whoever runs the weekly timer needs the checkouts.
-
-`orgami join <company> --repo <url> [--path <dir>]` skips the questions, for
-scripts and for a docs repo that lives outside the org.
+Notes are screened for credentials and for any *other* client configured on the
+machine before they are written, and again before anything is pushed. They can
+require a pull request to reach the team, and they can be superseded and pruned.
+A colleague picks up an existing map with one `orgami join` — no scan, no
+clones. See **[docs/notes.md](docs/notes.md)**.
 
 ## Cost
 
 Two Claude calls a week: the recap, and the decision mining. One more if you use
-`orgami doc --narrate`.
-Everything else is `gh`, `git`, `jq` and `grep`. `orgami report --stats-only`
-costs nothing at all.
+`orgami doc --narrate`. Everything else is `gh`, `git`, `jq` and `grep`.
+`orgami report --stats-only` costs nothing at all.
+
+## Contributing
+
+Bug reports and patches welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers how
+to test orgami with no organization and no token, and what the shape of a good
+change is. Issues labelled
+[good first issue](https://github.com/achevalier-dev/orgami/labels/good%20first%20issue)
+are the ones to start with. If the scan got your organization's shape wrong,
+that is the most useful report there is.
+
+## Docs
+
+- [Installing by hand](docs/install.md) — per-distribution dependencies, WSL, the plugin
+- [The map](docs/map.md) — what the scan looks for, and what it refuses to infer
+- [Other agents](docs/agents.md) — Cursor, MCP clients, `AGENTS.md`
+- [Team notes](docs/notes.md) — screening, review, pruning, `orgami join`
+- [Layout](docs/layout.md) — every file in this repo, and the state it keeps
 
 ## Licence
 

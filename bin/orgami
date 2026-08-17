@@ -20,6 +20,11 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
   orgami use <company>                  make it the default
   orgami list                           companies configured here
+  orgami join <company> --repo <url>    pick up a colleague's map, no scan
+
+  orgami note ["what you learned"]      record it for the whole team
+  orgami notes [--repo R] [--tag T] [q] what the team has recorded
+  orgami sync                           exchange notes through the docs repo
 
   orgami pull [--last N] [--since D --until D]
                                         cache merged PRs for a week
@@ -86,6 +91,10 @@ case $cmd in
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
     ;;
+  note | notes | sync | join)
+    source "$ROOT/lib/notes.sh"
+    "cmd_$cmd" "$@"
+    ;;
   card | context)
     source "$ROOT/lib/card.sh"
     "cmd_$cmd" "$@"
@@ -101,6 +110,7 @@ case $cmd in
     source "$ROOT/lib/profile.sh"
     source "$ROOT/lib/doc.sh"
     source "$ROOT/lib/coupling.sh"
+    source "$ROOT/lib/notes.sh"
     source "$ROOT/lib/publish.sh"
     cmd_weekly "$@"
     ;;

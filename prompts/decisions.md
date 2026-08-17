@@ -20,7 +20,8 @@ Rules:
 - The reason must come from the PR body or a review comment. If no reason is
   stated anywhere, do not invent one — write `no reason recorded` and keep the
   bullet only if the decision itself is clearly durable.
-- Quote the repo and number for every bullet so it can be checked.
+- Quote the repo and number for every bullet, fully qualified as `org/repo#123`,
+  so it can be checked and linked. Never a bare `#123`.
 - Order by how much it constrains future work, most constraining first.
 - Cap at eight bullets. Fewer is normal and correct.
 - If nothing in this week qualifies, output exactly `NONE` and nothing else.

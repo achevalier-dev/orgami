@@ -227,6 +227,35 @@ Company state, never in this repo:
   map/decisions/       one fragment per week, assembled into DECISIONS.md
 ```
 
+## Five people, one memory
+
+The map and the recaps are generated. What a team knows is not — the cause
+someone found at 2am, the reason the obvious fix does not work, the step missing
+from the README. `orgami note` records that, and the docs repo syncs it.
+
+```bash
+orgami note "Parse Dashboard config lives in WinIt-ParseDashboard/index.js,
+             not the fork. Copying it into SSM by hand drops every user's apps[]."
+orgami notes --repo WinIt-backend
+orgami sync
+```
+
+Run inside a checkout, a note attaches itself to that repo, and from then on it
+appears on the repo's page — so the next person's agent reads it before touching
+the code. Each note is its own file, named by timestamp and author, so five
+people writing at once never produce a conflict. `orgami sync` runs on its own as
+part of `orgami weekly`.
+
+A colleague does not need to scan anything to get all of it:
+
+```bash
+orgami join winit --repo git@github.com:winitapp/orgami-reports.git
+```
+
+That pulls the map, the cards, the conventions, the decisions and every note out
+of the docs repo — one command instead of forty clones. Only whoever runs the
+weekly timer needs the checkouts.
+
 ## Cost
 
 Two Claude calls a week: the recap, and the decision mining. One more if you use

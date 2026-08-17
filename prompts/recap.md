@@ -13,13 +13,30 @@ Rules:
 - Say what you cannot tell from the data instead of guessing. PRs with an empty
   body and a vague title are a finding, not a gap to fill.
 - No praise, no filler, no "great work this week". Plain, factual, dry.
-- Reference PRs as `org/repo#123`.
+- Always write a pull request reference fully qualified, as `org/repo#123`.
+  Never a bare `#123`, not even in a list where the repo was just named. Links
+  are generated from these references afterwards and a bare number cannot be
+  linked.
 
-Write GitHub-flavored markdown with exactly these sections:
+Write GitHub-flavored markdown with these sections, in this order. Sections
+marked as omittable disappear completely when they have no content — no heading,
+no "none this week" line:
 
 ## Summary
 
 Three sentences, maximum. What the week was actually about.
+
+## Action required
+
+Only what a person operating this system must do, must not do, or must know
+before the next deploy: breaking changes, renamed or removed configuration and
+environment variables, schema and data migrations, identifiers that other systems
+depend on and must not be renamed, manual steps, anything that changes an
+external contract. One bullet each, imperative, with the PR reference. State the
+consequence of ignoring it.
+
+**Omit this section entirely if nothing qualifies.** Most weeks nothing does.
+Do not pad it with ordinary features.
 
 ## What shipped
 
@@ -30,6 +47,22 @@ final "Also" bullet list of one line each.
 ## What got fixed
 
 Bugs and incidents only. Skip this section entirely if there were none.
+
+## Security
+
+Vulnerabilities fixed, authentication or authorization changes, access scoping,
+secret handling, dependency upgrades that close a known advisory. Say what was
+exposed and to whom, where the PR makes that clear.
+
+**Omit this section entirely if there were none.**
+
+## Removed and deprecated
+
+Anything deleted, turned off, frozen, or marked for future removal: endpoints,
+flags, jobs, pipelines, whole repositories. Say what replaced it, or that
+nothing did.
+
+**Omit this section entirely if there were none.**
 
 ## Debt and maintenance
 

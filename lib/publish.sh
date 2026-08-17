@@ -70,6 +70,7 @@ cmd_weekly() {
   cmd_coupling
   cmd_doc
   if [[ -n $(cfg docs_repo) ]]; then
+    cmd_sync || true
     cmd_publish --yes
   else
     log "no docs_repo configured — report left in $DIR/reports"

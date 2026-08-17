@@ -96,6 +96,11 @@ card_render() {
            end)
       | .[]' "$g"
 
+  if [[ -d $DIR/notes ]]; then
+    source "$ROOT/lib/notes.sh"
+    notes_for_repo "$repo"
+  fi
+
   local prs
   prs=$(card_recent_prs "$repo")
   if [[ -n $prs ]]; then

@@ -54,3 +54,12 @@ iso_week() { date -u +%G-W%V; }
 week_start() {
   date -u -d "monday - ${1:-0} week" +%Y-%m-%d
 }
+
+# Turns org/repo#123 into a GitHub link, backticked or bare. Runs over the
+# model's output after the fact, so a URL is never invented — the reference has
+# to already be there, and the link is derived from it mechanically.
+linkify_prs() {
+  sed -E \
+    -e 's%`([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)#([0-9]+)`%[\1/\2#\3](https://github.com/\1/\2/pull/\3)%g' \
+    -e 's%(^|[[:space:](])([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)#([0-9]+)%\1[\2/\3#\4](https://github.com/\2/\3/pull/\4)%g'
+}

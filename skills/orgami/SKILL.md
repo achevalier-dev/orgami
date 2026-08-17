@@ -39,6 +39,7 @@ its recent merged pull requests, and links to any `AGENTS.md` it already has.
 | How they write code here | `~/.orgami/<c>/map/CONVENTIONS.md` |
 | Why something is the way it is | `~/.orgami/<c>/map/DECISIONS.md` |
 | What shipped recently | `~/.orgami/<c>/reports/*.md`, newest last |
+| What teammates hit before you | `orgami notes`, `orgami notes --repo <repo>` |
 | Anything needing a filter | `~/.orgami/<c>/map/graph.json`, `repos.json`, `coupling.json` |
 
 `CONVENTIONS.md` is the one to read before writing code: it gathers every
@@ -50,6 +51,31 @@ over the default.
 accepted, things deprecated — each bullet carrying the pull request it came
 from. Read it before proposing a change that might already have been decided
 against.
+
+## Shared team memory
+
+`orgami note` records something the team should not have to rediscover — a
+gotcha, a cause found the hard way, a constraint that is not written down
+anywhere. Notes are one file each, synced through the docs repo, and they appear
+on the repo's page for everyone.
+
+```bash
+orgami notes --repo WinIt-backend   # what has been recorded about this repo
+orgami note "..." --repo <repo> --tag gotcha
+```
+
+**Offer to write a note when you learn something durable that is not in the
+code** — the real cause of a bug, why an obvious approach does not work here, an
+undocumented step needed to run something. Ask the user before writing: a note
+is shared with their whole team, under their name. Keep it to a few sentences,
+written for whoever hits the same wall next, and say what the evidence was.
+
+Do not record: anything already in the code, anything specific to one session,
+secrets, or credentials.
+
+`orgami sync` exchanges notes with the docs repo — it pushes, so treat it like
+`publish` and only run it when the user asks. `orgami join <company> --repo <url>`
+sets a new machine up from a colleague's docs repo without scanning anything.
 
 ## Picking the company
 

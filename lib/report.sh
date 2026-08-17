@@ -1,6 +1,34 @@
 # orgami report — deterministic stats by jq, narrative by claude.
 # Numbers never come from the model.
 
+# Durable decisions from this week's PRs, kept as one fragment per week so the
+# record only ever grows. `orgami doc` assembles them into DECISIONS.md.
+report_decisions() {
+  local week=$1 digest=$2 model=$3
+  local dest="$DIR/map/decisions"
+  mkdir -p "$dest"
+
+  local body
+  body=$( {
+    cat "$ROOT/prompts/decisions.md"
+    printf '\n\nPULL_REQUESTS\n```json\n'
+    cat "$digest"
+    printf '\n```\n'
+  } | claude -p --model "$model" --output-format text 2>/dev/null || true)
+
+  if [[ -z $body || $body == NONE* ]]; then
+    rm -f "$dest/$week.md"
+    return 0
+  fi
+
+  {
+    echo "## $week"
+    echo
+    echo "$body"
+  } >"$dest/$week.md"
+  log "decisions recorded for $week"
+}
+
 cmd_report() {
   load_company
   need jq
@@ -65,6 +93,7 @@ cmd_report() {
   } | claude -p --model "$model" --output-format text >"$out.body" ||
     die "claude failed — is 'claude' authenticated?"
 
+  report_decisions "$week" "$digest" "$model"
   rm -f "$digest"
 
   {

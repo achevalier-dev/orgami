@@ -147,6 +147,7 @@ scan_links() {
   local repo=$1 src=$2 other rel line
   while read -r other; do
     [[ -z $other || $other == "$repo" ]] && continue
+    [[ $other == .* ]] && continue
     local hit
     hit=$(grep -rn --binary-files=without-match \
       -e "github\.com[:/]$ORG/$other\b" \
@@ -208,6 +209,7 @@ scan_repo() {
 
   scan_deploy "$repo" "$src"
   scan_links "$repo" "$src"
+  profile_repo "$repo" "$src" "$meta"
   : >"$EMITDIR/done/$repo"
 }
 
@@ -272,6 +274,15 @@ cmd_scan() {
      | select([. as $n | $excl[] | select($n | test(.))] | length == 0)' \
     "$repos" >"$REPOLIST"
 
+  local docs_repo
+  docs_repo=$(cfg docs_repo)
+  if [[ -n $docs_repo ]]; then
+    local docs_name=${docs_repo##*/}
+    docs_name=${docs_name%.git}
+    grep -vxF "$docs_name" "$REPOLIST" >"$REPOLIST.keep" || true
+    mv "$REPOLIST.keep" "$REPOLIST"
+  fi
+
   [[ -n $only ]] && echo "$only" >"$REPOLIST"
 
   local total
@@ -285,10 +296,13 @@ cmd_scan() {
   : >"$EMITDIR/failed"
   DEPTH=$depth
   REPOSJSON=$repos
-  export EMITDIR DEPTH ORG DIR REPOLIST REPOSJSON NOISE_DOMAINS
-  export -f scan_repo scan_deploy scan_links emit_node emit_edge emit_tool emit_hosts_from
+  export EMITDIR DEPTH ORG DIR REPOLIST REPOSJSON ROOT
 
-  xargs -a "$REPOLIST" -P "$jobs" -I{} bash -c 'scan_repo "$1"' _ {} &
+  xargs -a "$REPOLIST" -P "$jobs" -I{} bash -c '
+    source "$ROOT/lib/common.sh"
+    source "$ROOT/lib/scan.sh"
+    source "$ROOT/lib/profile.sh"
+    scan_repo "$1"' _ {} &
   local xpid=$!
   if [[ -t 2 ]]; then
     scan_progress "$total" "$xpid"
@@ -309,7 +323,47 @@ cmd_scan() {
         edges: ([.[] | select(.t == "edge") | del(.t)] | unique)}' \
       >"$out"
 
+  local profiles="$DIR/map/repos.json"
+  find "$EMITDIR" -name 'p-*.json' -exec cat {} + |
+    jq -s 'sort_by(.name)' >"$profiles"
+
+  scan_infer_links "$out" "$profiles"
+
   rm -rf "$EMITDIR"
   rm -f "$REPOLIST"
   echo "$out  ($(jq '.nodes | length' "$out") nodes, $(jq '.edges | length' "$out") edges)"
+}
+
+# Edges no single repo can declare: who calls whom, and who shares configuration.
+scan_infer_links() {
+  local graph=$1 profiles=$2 tmp
+  tmp=$(mktemp)
+  jq -s --slurpfile links /dev/null \
+    '.[0] as $g | .[1] as $rs
+     | ($rs | map(.env[]) | group_by(.) | map({key: .[0], n: length}) | from_entries) as $freq
+     | ([$rs[] | {name, hosts: ((.serves // [])
+          + [$g.edges[] | select(.kind == "deploys-to" and .from == ("repo:" + .name)) | .to | sub("^host:"; "")])}]
+        | map(select((.hosts | length) > 0))) as $servers
+     | ([$servers[] | .name as $n | .hosts[] | {host: ., name: $n}]
+        | group_by(.host) | map(select(length == 1)) | map(.[0])
+        | map({(.host): .name}) | add // {}) as $owner
+     | ($rs | map(.calls[]) | group_by(.) | map({(.[0]): length}) | add // {}) as $callfreq
+     | [$rs[] as $r
+        | $r.calls[] as $h
+        | select($owner[$h] != null)
+        | select($callfreq[$h] <= 3)
+        | select($owner[$h] != $r.name)
+        | {from: ("repo:" + $r.name), to: ("repo:" + $owner[$h]), kind: "calls",
+           evidence: ("https://" + $h)}] as $calls
+     | ([$rs[] | {name, env: [.env[]
+         | select(test("_(URL|ENDPOINT|API|HOST|BASE|BUCKET|QUEUE|TOPIC|DB|DATABASE)$"))
+         | select($freq[.] < 6)]}]) as $e
+     | [$e[] as $a | $e[] as $b | select($a.name < $b.name)
+        | ($a.env - ($a.env - $b.env)) as $shared
+        | select(($shared | length) > 0)
+        | {from: ("repo:" + $a.name), to: ("repo:" + $b.name), kind: "shares-config",
+           evidence: ($shared | sort | .[0:3] | join(", "))}] as $cfg
+     | $g | .edges = ((.edges + $calls + $cfg) | unique)' \
+    "$graph" "$profiles" >"$tmp"
+  mv "$tmp" "$graph"
 }

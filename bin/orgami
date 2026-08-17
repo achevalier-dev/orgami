@@ -27,9 +27,12 @@ orgami — weekly PR recaps and a map of an organization's repositories
                                         write the weekly recap
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
-  orgami doc [--narrate]                render ARCHITECTURE.md from the map
+  orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
+  orgami coupling                       which repos keep changing together
   orgami view                           browse the map in the terminal
   orgami query <repo|host|tool|service> print one node and its edges
+  orgami card <repo>                    the repo's page: stack, commands, links
+  orgami context [repo]                 everything an agent needs before editing
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
 
@@ -68,6 +71,7 @@ case $cmd in
     ;;
   scan)
     source "$ROOT/lib/scan.sh"
+    source "$ROOT/lib/profile.sh"
     cmd_scan "$@"
     ;;
   doc)
@@ -78,6 +82,14 @@ case $cmd in
     source "$ROOT/lib/view.sh"
     "cmd_$cmd" "$@"
     ;;
+  coupling)
+    source "$ROOT/lib/coupling.sh"
+    cmd_coupling "$@"
+    ;;
+  card | context)
+    source "$ROOT/lib/card.sh"
+    "cmd_$cmd" "$@"
+    ;;
   publish)
     source "$ROOT/lib/publish.sh"
     cmd_publish "$@"
@@ -86,7 +98,9 @@ case $cmd in
     source "$ROOT/lib/pull.sh"
     source "$ROOT/lib/report.sh"
     source "$ROOT/lib/scan.sh"
+    source "$ROOT/lib/profile.sh"
     source "$ROOT/lib/doc.sh"
+    source "$ROOT/lib/coupling.sh"
     source "$ROOT/lib/publish.sh"
     cmd_weekly "$@"
     ;;

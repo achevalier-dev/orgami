@@ -29,8 +29,14 @@ cmd_publish() {
   local dest="$work/$path"
   mkdir -p "$dest/reports"
   cp -f "$DIR/reports/"*.md "$dest/reports/" 2>/dev/null || true
-  cp -f "$DIR/map/ARCHITECTURE.md" "$dest/" 2>/dev/null || true
-  cp -f "$DIR/map/graph.json" "$dest/" 2>/dev/null || true
+  local f
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md graph.json repos.json coupling.json; do
+    cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
+  done
+  if compgen -G "$DIR/map/repos/*.md" >/dev/null; then
+    mkdir -p "$dest/repos"
+    cp -f "$DIR/map/repos/"*.md "$dest/repos/" 2>/dev/null || true
+  fi
 
   if [[ -z $(git -C "$work" status --porcelain) ]]; then
     echo "nothing to publish — docs repo already matches"
@@ -61,6 +67,7 @@ cmd_weekly() {
   cmd_pull --last 0
   cmd_report
   cmd_scan
+  cmd_coupling
   cmd_doc
   if [[ -n $(cfg docs_repo) ]]; then
     cmd_publish --yes

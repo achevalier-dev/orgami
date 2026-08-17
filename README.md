@@ -108,6 +108,11 @@ what is committed:
 | Servers and endpoints | Kamal `servers:`, Fly app names, Kubernetes ingress hosts, `.env.example` |
 | Backing services | `docker-compose.yml` images, `*_URL` / `*_HOST` names in `.env.example` |
 | Repo-to-repo links | `github.com/org/other`, `ghcr.io/org/other`, `@org/other`, and dependency manifests naming a sibling repo |
+| What a repo is | framework (Next.js, NestJS, Express, Rails, Django, FastAPI, Parse, Go, …), package manager, runtime version |
+| How to work on it | `package.json` scripts, Makefile targets, `bin/setup`-style scripts, Procfile process types |
+| What it serves | Express/Nest/Fastify routes, Next.js API routes and route handlers, Parse cloud functions, Flask and FastAPI decorators, Rails routes |
+| What it calls | literal URLs in source, matched against the hosts other repos declare as their own |
+| Shared contracts | distinctive environment variables read by more than one repo |
 
 The result is `map/graph.json` — a flat list of nodes and edges, nothing else.
 `ARCHITECTURE.md`, the mermaid diagrams and the terminal view are all rendered
@@ -138,17 +143,40 @@ orgami query kamal
 orgami query 51.158.10.20
 ```
 
-## Claude Code context
+## What an agent reads
 
-`install.sh` links a skill into `~/.claude/skills/orgami/`. Claude reads it
-when a question turns architectural — where something is deployed, how two
-services talk, which repo owns a behavior, what shipped recently — and answers
-from the map instead of guessing, citing the evidence line for anything it
-claims.
+```bash
+orgami context          # inside a checkout: that repo. anywhere else: the org.
+orgami context <repo>   # by name
+```
 
-The skill tells Claude to match the checkout to a company by its git remote, to
-say when the map is stale rather than trusting it silently, and never to run
-`orgami publish` on its own.
+One command, one screen. The repo page carries the framework, the exact commands
+to run and test it, what it talks to and what talks to it, the endpoints it
+serves, the environment it reads, where it deploys, which repos it usually
+changes with, its recent merged pull requests, and links to any `AGENTS.md` the
+repo already has. Cards are also written to `map/repos/<repo>.md` and published
+with everything else.
+
+Three files sit alongside the map and answer the questions a map cannot:
+
+- **`CONVENTIONS.md`** — every `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md`
+  committed anywhere in the org, with the `.github` repo's copy marked as the
+  org-wide default. An agent reads how this team writes code without opening
+  forty repositories.
+- **`DECISIONS.md`** — durable decisions mined from merged pull requests each
+  week: what was adopted or dropped, what constraint was accepted, what was
+  rejected and why. One fragment per week, so the record only grows. Every
+  bullet carries its pull request.
+- **`coupling.json`** — which repos keep landing changes together, counted by
+  same-day and same-week co-occurrence, bots excluded. Correlation, not
+  dependency, and labelled as such — but it is the blast radius no static scan
+  can see, and it sharpens every week the timer runs.
+
+`install.sh` links a skill into `~/.claude/skills/orgami/` that teaches Claude to
+run `orgami context` first, cite the evidence line for anything it claims, say
+when the map is stale rather than trusting it silently, distinguish "not found in
+committed configuration" from "not connected", and never run `orgami publish` on
+its own.
 
 There is no MCP server. The CLI plus a skill covers the same ground with less to
 install and less to break; an MCP wrapper is a thin shim over these commands if
@@ -167,6 +195,9 @@ lib/report.sh          stats + Claude -> reports/
 lib/scan.sh            repo scan -> map/graph.json
 lib/doc.sh             graph.json -> ARCHITECTURE.md
 lib/view.sh            fzf TUI, query, open
+lib/profile.sh         what a repo is: framework, commands, env, routes
+lib/card.sh            repo pages and `orgami context`
+lib/coupling.sh        which repos change together
 lib/ui.sh              the menu and the setup wizard
 lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
@@ -187,12 +218,19 @@ Company state, never in this repo:
   cache/docs/          the docs repo checkout
   reports/             one markdown recap per week
   map/graph.json       nodes and edges
+  map/repos.json       one profile per repo
+  map/coupling.json    which repos change together
   map/ARCHITECTURE.md  rendered from the graph
+  map/CONVENTIONS.md   the org's own agent instructions, gathered
+  map/DECISIONS.md     decisions mined from pull requests, one section per week
+  map/repos/<repo>.md  a page per repo
+  map/decisions/       one fragment per week, assembled into DECISIONS.md
 ```
 
 ## Cost
 
-One Claude call per weekly report, one more if you use `orgami doc --narrate`.
+Two Claude calls a week: the recap, and the decision mining. One more if you use
+`orgami doc --narrate`.
 Everything else is `gh`, `git`, `jq` and `grep`. `orgami report --stats-only`
 costs nothing at all.
 

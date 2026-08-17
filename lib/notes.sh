@@ -62,6 +62,16 @@ cmd_note() {
 
   [[ -n $repo ]] || repo=$(notes_repo_here)
 
+  # A tag from this vocabulary files the note into a section of the repo's
+  # runbook. Anything else is still a perfectly good note.
+  if [[ ${#tags[@]} -eq 0 ]] && command -v gum >/dev/null; then
+    source "$ROOT/lib/runbook.sh"
+    local picked
+    picked=$(printf '%s\n' "${RUNBOOK_TAGS[@]}" "none of these" |
+      gum choose --header "File it in the runbook under…" 2>/dev/null || true)
+    [[ -n $picked && $picked != "none of these" ]] && tags=("$picked")
+  fi
+
   local author stamp id file
   author=$(notes_author)
   stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)

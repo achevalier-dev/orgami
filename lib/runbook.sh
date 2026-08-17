@@ -147,7 +147,7 @@ runbook_render() {
       echo
     fi
     if [[ -n $obs ]]; then
-      echo "Wired to: $(sed 's/_.*//' <<<"$obs" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+      echo "Wired to: $(grep -oE "SENTRY|BETTERSTACK|DATADOG|NEW_?RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG|PROMETHEUS" <<<"$obs" | sort -u | paste -sd, - | sed 's/,/, /g')"
       echo
       echo "<details><summary>the variables that configure it</summary>"
       echo
@@ -289,8 +289,7 @@ runbook_org() {
     echo "## Where the alerts go"
     echo
     jq -r '.[] | .name as $n
-      | [.env[]? | select(test("SENTRY|BETTERSTACK|DATADOG|NEWRELIC|NEW_RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG"))
-         | sub("_.*"; "")] | unique
+      | [.env[]? | (match("SENTRY|BETTERSTACK|DATADOG|NEW_?RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG|PROMETHEUS") | .string)] | unique
       | if length == 0 then empty else "- **" + $n + "** — " + join(", ") end' "$profiles"
     echo
 

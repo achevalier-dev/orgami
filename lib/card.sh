@@ -4,7 +4,7 @@
 card_recent_prs() {
   local repo=$1 limit=${2:-6}
   find "$DIR/cache/prs" -name '*.json' -not -name '*.stats.json' 2>/dev/null |
-    sort | tail -8 | xargs -r cat 2>/dev/null |
+    sort | tail -8 | tr '\n' '\0' | xargs -0 cat 2>/dev/null |
     jq -sr --arg r "$repo" --argjson n "$limit" \
       '[.[].prs[]? | select(.repository.name == $r)]
        | sort_by(.mergedAt) | reverse | .[0:$n][]
@@ -186,7 +186,7 @@ context_overview() {
   echo "## Biggest repos by recent work"
   echo
   find "$DIR/cache/prs" -name '*.json' -not -name '*.stats.json' 2>/dev/null |
-    sort | tail -8 | xargs -r cat 2>/dev/null |
+    sort | tail -8 | tr '\n' '\0' | xargs -0 cat 2>/dev/null |
     jq -sr '[.[].prs[]? | .repository.name] | group_by(.) | map({r: .[0], n: length})
             | sort_by(-.n) | .[0:8][] | "- \(.r) — \(.n) merged"' 2>/dev/null || true
   echo

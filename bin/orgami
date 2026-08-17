@@ -4,7 +4,14 @@
 
 set -euo pipefail
 
-ORGAMI_BIN=$(readlink -f "${BASH_SOURCE[0]}")
+# Resolve this file through any symlinks before anything else, without GNU
+# readlink -f, which macOS does not have.
+_self=${BASH_SOURCE[0]}
+while [[ -L $_self ]]; do
+  _link=$(readlink "$_self")
+  if [[ $_link == /* ]]; then _self=$_link; else _self=$(dirname "$_self")/$_link; fi
+done
+ORGAMI_BIN=$(cd -- "$(dirname -- "$_self")" && pwd)/$(basename "$_self")
 ROOT=$(cd -- "$(dirname -- "$ORGAMI_BIN")/.." && pwd)
 
 source "$ROOT/lib/common.sh"
@@ -49,6 +56,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami agents --git-hook              refresh the block on merge and checkout
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
+  orgami schedule [--off]               run weekly, on systemd or launchd
 
 Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.
 EOF
@@ -116,6 +124,10 @@ case $cmd in
     fi
     need python3
     exec python3 "$ROOT/lib/mcp.py" "$@"
+    ;;
+  schedule)
+    source "$ROOT/lib/schedule.sh"
+    cmd_schedule "$@"
     ;;
   agents)
     source "$ROOT/lib/agents.sh"

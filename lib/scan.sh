@@ -298,11 +298,11 @@ cmd_scan() {
   REPOSJSON=$repos
   export EMITDIR DEPTH ORG DIR REPOLIST REPOSJSON ROOT
 
-  xargs -a "$REPOLIST" -P "$jobs" -I{} bash -c '
+  xargs -P "$jobs" -I{} bash -c '
     source "$ROOT/lib/common.sh"
     source "$ROOT/lib/scan.sh"
     source "$ROOT/lib/profile.sh"
-    scan_repo "$1"' _ {} &
+    scan_repo "$1"' _ {} <"$REPOLIST" &
   local xpid=$!
   if [[ -t 2 ]]; then
     scan_progress "$total" "$xpid"

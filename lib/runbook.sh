@@ -229,7 +229,7 @@ runbook_render() {
   # ------------------------------------------------------------ who and how
   local authors
   authors=$(find "$DIR/cache/prs" -name '*.json' -not -name '*.stats.json' 2>/dev/null |
-    sort | tail -8 | xargs -r cat 2>/dev/null |
+    sort | tail -8 | tr '\n' '\0' | xargs -0 cat 2>/dev/null |
     jq -sr --arg r "$repo" '[.[].prs[]? | select(.repository.name == $r) | .author.login // "unknown"]
       | group_by(.) | map({a: .[0], n: length}) | sort_by(-.n) | .[0:5][]
       | "- \(.a) — \(.n) merged"' 2>/dev/null || true)

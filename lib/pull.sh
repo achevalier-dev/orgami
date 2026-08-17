@@ -17,12 +17,12 @@ cmd_pull() {
 
   if [[ -z $since ]]; then
     since=$(week_start "$weeks_ago")
-    until=$(date -u -d "$since + 6 days" +%Y-%m-%d)
+    until=$(date_shift "$since" +6)
   fi
   [[ -n $until ]] || until=$(date -u +%Y-%m-%d)
 
   local label
-  label=$(date -u -d "$since" +%G-W%V)
+  label=$(date_fmt "$since" %G-W%V)
   local out="$DIR/cache/prs/$label.json"
 
   local q="org:$ORG is:pr is:merged merged:$since..$until"

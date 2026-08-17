@@ -52,7 +52,7 @@ cmd_note() {
         --width 76 --height 8 --header "note for $COMPANY") || return 1
     else
       local f
-      f=$(mktemp --suffix=.md)
+      f="${TMPDIR:-/tmp}/orgami-note-$$.md"
       "${EDITOR:-vi}" "$f" || true
       text=$(cat "$f")
       rm -f "$f"
@@ -335,7 +335,8 @@ cmd_join() {
 
   local suggested
   suggested=$(gh api "repos/$org/$repo/contents/$path/graph.json" \
-    --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | jq -r '.company // empty' 2>/dev/null)
+    -H "Accept: application/vnd.github.raw" 2>/dev/null |
+    jq -r '.company // empty' 2>/dev/null)
   [[ -n $suggested ]] || suggested=$org
 
   company=$(gum input --prompt "short name for this org: " --value "$suggested") || return 1

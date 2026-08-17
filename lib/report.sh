@@ -29,6 +29,35 @@ report_decisions() {
   log "decisions recorded for $week"
 }
 
+# The same week, written for the person paying for it. One fragment per week,
+# assembled into EXECUTIVE.md by `orgami doc`.
+report_exec() {
+  local week=$1 stats=$2 digest=$3 model=$4
+  local dest="$DIR/reports/exec"
+  mkdir -p "$dest"
+
+  local body
+  body=$( {
+    cat "$ROOT/prompts/exec.md"
+    printf '\n\nSTATS\n```json\n'
+    cat "$stats"
+    printf '\n```\n\nPULL_REQUESTS\n```json\n'
+    cat "$digest"
+    printf '\n```\n'
+  } | claude -p --model "$model" --output-format text 2>/dev/null || true)
+
+  [[ -n $body ]] || return 0
+
+  {
+    echo "## $week"
+    echo
+    echo "<sub>$(jq -r .since "$stats") to $(jq -r .until "$stats")</sub>"
+    echo
+    echo "$body"
+  } >"$dest/$week.md"
+  log "executive brief written for $week"
+}
+
 cmd_report() {
   load_company
   need jq
@@ -94,6 +123,7 @@ cmd_report() {
     die "claude failed — is 'claude' authenticated?"
 
   report_decisions "$week" "$digest" "$model"
+  report_exec "$week" "$stats" "$digest" "$model"
   rm -f "$digest"
 
   {

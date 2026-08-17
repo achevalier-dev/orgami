@@ -183,7 +183,7 @@ cmd_setup() {
     # Set up on a Monday and this week is empty. Recap the last full week instead.
     prs=$(jq '.prs | length' "$dir/cache/prs/$week.json" 2>/dev/null || echo 0)
     if [[ ${prs:-0} -eq 0 ]]; then
-      week=$(date -u -d "$(week_start 1)" +%G-W%V)
+      week=$(date_fmt "$(week_start 1)" %G-W%V)
       gum spin --spinner dot --title "nothing merged yet this week — fetching $week…" -- \
         "$ORGAMI_BIN" pull --last 1 || true
     fi
@@ -213,10 +213,8 @@ cmd_setup() {
 
   trap - INT
 
-  if [[ -f $HOME/.config/systemd/user/orgami-weekly@.service ]] &&
-    gum confirm "Run all of that every Friday?"; then
-    systemctl --user enable --now "orgami-weekly@$company.timer" &&
-      gum style --foreground 2 "✓ orgami-weekly@$company.timer"
+  if gum confirm "Run all of that every Friday?"; then
+    "$ORGAMI_BIN" schedule || gum style --foreground 3 "could not schedule it — orgami schedule"
   fi
 
   echo

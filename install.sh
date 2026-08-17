@@ -9,13 +9,55 @@ BIN_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/orgami"
 UNIT_DIR="$HOME/.config/systemd/user"
 
-for tool in jq gh git fzf gum python3; do
-  command -v "$tool" >/dev/null || echo "warning: $tool is not on PATH" >&2
-done
-command -v claude >/dev/null ||
-  echo "warning: claude is not on PATH — 'orgami report' needs Claude Code in headless mode" >&2
+# Say exactly what to run on this machine, rather than naming a missing tool
+# and leaving the reader to work it out.
+pkg_hint() {
+  case "$1" in
+    brew) echo "brew install $2" ;;
+    pacman) echo "sudo pacman -S $3" ;;
+    apt) echo "sudo apt install $3" ;;
+    dnf) echo "sudo dnf install $3" ;;
+    *) echo "install $2" ;;
+  esac
+}
+
+MGR=none
+command -v brew >/dev/null && MGR=brew
+[[ $MGR == none ]] && command -v pacman >/dev/null && MGR=pacman
+[[ $MGR == none ]] && command -v apt >/dev/null && MGR=apt
+[[ $MGR == none ]] && command -v dnf >/dev/null && MGR=dnf
+
+missing=()
+#            command  brew name       distro name
+check() {
+  command -v "$1" >/dev/null && return 0
+  missing+=("$1")
+  echo "missing: $1 — $(pkg_hint "$MGR" "$2" "$3")" >&2
+}
+
+check jq jq jq
+check git git git
+check fzf fzf fzf
+check gum gum gum
+check python3 python python3
+case $MGR in
+  apt | dnf) check gh gh "gh   # https://github.com/cli/cli/blob/trunk/docs/install_linux.md" ;;
+  *) check gh gh github-cli ;;
+esac
+
+if ! command -v claude >/dev/null; then
+  echo "missing: claude — curl -fsSL https://claude.ai/install.sh | bash" >&2
+  echo "         (only 'orgami report' needs it; everything else works without)" >&2
+fi
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo >&2
+  echo "orgami is installed, but install the above before using it." >&2
+  echo >&2
+fi
+
 gh auth status >/dev/null 2>&1 ||
-  echo "warning: gh is not authenticated — run: gh auth login" >&2
+  echo "gh is not signed in — run: gh auth login" >&2
 
 mkdir -p "$BIN_DIR"
 ln -sf "$REPO/bin/orgami" "$BIN_DIR/orgami"
@@ -31,10 +73,18 @@ else
   echo "linked $SKILL_DIR/SKILL.md"
 fi
 
-mkdir -p "$UNIT_DIR"
-cp -f "$REPO/systemd/orgami-weekly@.service" "$REPO/systemd/orgami-weekly@.timer" "$UNIT_DIR/"
-systemctl --user daemon-reload 2>/dev/null || true
-echo "installed $UNIT_DIR/orgami-weekly@.{service,timer}"
+case "$(uname -s)" in
+  Linux)
+    if command -v systemctl >/dev/null; then
+      mkdir -p "$UNIT_DIR"
+      cp -f "$REPO/systemd/orgami-weekly@.service" "$REPO/systemd/orgami-weekly@.timer" "$UNIT_DIR/"
+      systemctl --user daemon-reload 2>/dev/null || true
+      echo "installed $UNIT_DIR/orgami-weekly@.{service,timer}"
+    fi
+    ;;
+  Darwin) echo "macOS: 'orgami schedule' installs a launchd agent per company" ;;
+  *) echo "no systemd or launchd here — 'orgami schedule' prints a cron line" ;;
+esac
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;

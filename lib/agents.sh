@@ -220,7 +220,7 @@ agents_refresh() {
         touched=1
       fi
       [[ $touched == 1 ]] && { n=$((n + 1)); echo "  refreshed $repo"; }
-    done < <(find "$root" -maxdepth 5 -name .git -printf '%h\n' 2>/dev/null)
+    done < <(find_dirs_containing "$root" .git 5)
   done
   rm -f "$block"
   echo "$n checkout(s) refreshed"

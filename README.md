@@ -35,7 +35,7 @@ a new one it creates for you (`orgami-reports` by default, private or public),
 a git URL you type, or nowhere at all. It ends by offering the first recap, the
 first scan and the weekly timer, one confirm each. Bare
 `orgami` opens a menu over whichever company is current — browse the map, read
-the last recap, write this week's, rebuild, publish, switch client.
+the last recap, write this week's, rebuild, publish, switch org.
 
 Both need [gum](https://github.com/charmbracelet/gum). Everything below works
 without it, and is what the timer and any script should use:

@@ -89,8 +89,8 @@ cmd_setup() {
   gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
 
   echo
-  ui_title "Add a company to orgami"
-  ui_dim "One directory per client under $ORGAMI_HOME. Nothing leaves your machine until you publish."
+  ui_title "Add an org to orgami"
+  ui_dim "One directory per org under $ORGAMI_HOME. Nothing leaves your machine until you publish."
   echo
 
   local org
@@ -105,7 +105,7 @@ cmd_setup() {
     die "cannot read '$org' with the current gh token"
 
   local company
-  company=$(gum input --prompt "short name for this client: " --value "$org") || return 1
+  company=$(gum input --prompt "short name for this org: " --value "$org") || return 1
   company=${company// /-}
   [[ -n $company ]] || return 1
   [[ -f $(company_dir "$company")/config.json ]] &&
@@ -213,7 +213,7 @@ cmd_menu() {
     ui_title "orgami"
     ui_dim "Nothing configured yet."
     echo
-    gum confirm "Add your first company?" && cmd_setup
+    gum confirm "Add your first org?" && cmd_setup
     return 0
   fi
 
@@ -235,8 +235,8 @@ cmd_menu() {
       "write this week's recap" \
       "rebuild the map" \
       "publish to the docs repo" \
-      "switch company" \
-      "add a company" \
+      "switch org" \
+      "add an org" \
       "quit") || return 0
 
     case $action in
@@ -273,13 +273,13 @@ cmd_menu() {
         "$ORGAMI_BIN" publish || true
         ui_pause
         ;;
-      "switch company")
+      "switch org")
         local pick
         # shellcheck disable=SC2046
-        pick=$(gum choose --header "Which company?" $(companies | tr '\n' ' ')) || continue
+        pick=$(gum choose --header "Which org?" $(companies | tr '\n' ' ')) || continue
         [[ -n $pick ]] && cmd_use "$pick" >/dev/null
         ;;
-      "add a company")
+      "add an org")
         cmd_setup
         ui_pause
         ;;

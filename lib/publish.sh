@@ -113,7 +113,7 @@ cmd_publish() {
   mkdir -p "$dest/reports"
   cp -f "$DIR/reports/"*.md "$dest/reports/" 2>/dev/null || true
   local f
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md graph.json repos.json coupling.json; do
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md EXECUTIVE.md ASK-CLAUDE.md graph.json repos.json coupling.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
   if compgen -G "$DIR/map/repos/*.md" >/dev/null; then

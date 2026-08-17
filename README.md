@@ -15,6 +15,49 @@ timer, and plain files that diff cleanly in git.
 
 ## Install
 
+One command. It installs what is missing, puts `orgami` on your PATH, and wires
+up Claude Code and Cursor if they are on the machine.
+
+**macOS, Linux, WSL:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstrap.sh | bash
+```
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstrap.ps1 | iex
+```
+
+Then:
+
+```bash
+gh auth login
+orgami init     # map an organization — or `orgami join` to pick up one that exists
+```
+
+That is the whole install. What it does, so nothing is a surprise:
+
+- installs any of `git gh jq fzf gum python3` you are missing, through Homebrew,
+  pacman, apt, dnf or winget — adding the GitHub CLI and Charm apt repositories
+  when the distribution needs them
+- clones orgami to `~/.local/share/orgami` and links `orgami` into `~/.local/bin`
+- **Claude Code**, if present: adds the marketplace and installs the plugin, so
+  the skill, `/orgami:context`, `/orgami:note` and the session hook come with it
+- **Cursor**, if present: installs the `sessionStart` hook for every project and
+  registers the MCP server in `~/.cursor/mcp.json`
+- installs the weekly timer units
+
+`--dry-run` prints every step without touching anything. `--no-deps` and
+`--no-editors` skip those parts. On Windows the PowerShell script prefers WSL
+when it is installed, and otherwise sets up Git for Windows and runs the same
+bash installer inside it.
+
+<details>
+<summary>Installing the pieces by hand instead</summary>
+
+### 1. Dependencies
 ### 1. Dependencies
 
 Pick the line for your machine. `git` is assumed; everything else is one command.
@@ -126,6 +169,8 @@ orgami schedule                # weekly, on systemd or launchd, cron line elsewh
 orgami agents --cursor-hook    # Cursor injects the context every session
 orgami mcp --config cursor     # or opencode, codex, windsurf, zed, vscode
 ```
+
+</details>
 
 ## Use
 
@@ -341,6 +386,8 @@ commands/              /orgami:context and /orgami:note
 .claude-plugin/        plugin and marketplace manifests
 skills/orgami/         the Claude Code skill
 lib/schedule.sh        the weekly timer, per platform
+bootstrap.sh           the one-command install for macOS, Linux and WSL
+bootstrap.ps1          the same for Windows
 systemd/               orgami-weekly@.service and .timer
 ```
 

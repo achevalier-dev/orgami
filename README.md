@@ -164,6 +164,14 @@ orgami notes --repo WinIt-backend
 orgami sync
 ```
 
+Mostly you will not type that. When a session ends, orgami reads back what was
+said and drafts a note if the session established something durable that is not
+visible in the code. Nothing is published unattended — drafts wait in
+`notes/draft/`, the next session says how many, and `orgami drafts` keeps or
+throws each one away. Most sessions produce nothing, which is the intended
+answer; the prompt is told so. Five a day at most, credentials stripped before
+the transcript leaves the machine, and `ORGAMI_AUTONOTE=0` turns it off.
+
 Notes are screened for credentials and for any *other* client configured on the
 machine before they are written, and again before anything is pushed. They can
 require a pull request to reach the team, and they can be superseded and pruned.

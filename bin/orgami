@@ -31,6 +31,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
                                         cache merged PRs for a week
   orgami report [--week YYYY-Www] [--model M] [--stats-only]
                                         write the weekly recap
+  orgami latest [--week W] [--raw]      read the newest recap
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
@@ -77,6 +78,10 @@ case $cmd in
   pull)
     source "$ROOT/lib/pull.sh"
     cmd_pull "$@"
+    ;;
+  latest | read)
+    source "$ROOT/lib/report.sh"
+    cmd_latest "$@"
     ;;
   report)
     source "$ROOT/lib/report.sh"

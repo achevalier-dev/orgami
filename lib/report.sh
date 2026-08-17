@@ -115,3 +115,39 @@ $(date -u +%Y-%m-%d). Numbers computed from the GitHub API; prose written by \`$
 
   echo "$out"
 }
+
+# orgami latest — read the most recent recap. Paged when a person is watching,
+# plain on a pipe so it composes.
+cmd_latest() {
+  load_company
+  local week="" raw=0
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --week) week=$2; shift 2 ;;
+      --raw | --cat) raw=1; shift ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+
+  local file
+  if [[ -n $week ]]; then
+    file="$DIR/reports/$week.md"
+    [[ -f $file ]] || die "no recap for $week — orgami latest lists what there is"
+  else
+    file=$(find "$DIR/reports" -name '*.md' 2>/dev/null | sort | tail -1)
+    [[ -n $file ]] || die "no recap yet — run: orgami pull && orgami report"
+  fi
+
+  if [[ $raw == 1 || ! -t 1 ]]; then
+    cat "$file"
+    return 0
+  fi
+
+  if command -v glow >/dev/null; then
+    glow -p "$file"
+  elif command -v gum >/dev/null; then
+    gum pager <"$file"
+  else
+    less -R "$file"
+  fi
+}

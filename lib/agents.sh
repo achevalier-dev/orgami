@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Making the map readable by agents that are not Claude Code: MCP for the ones
 # that speak it, generated context files for the ones that read markdown.
 

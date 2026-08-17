@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SessionStart: hand Claude the context for whatever repo this session opened in.
 # Silent when the directory has nothing to do with a mapped organization.
 

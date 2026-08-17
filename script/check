@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Everything CI runs, runnable before you push. No arguments: both passes.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+SCRIPTS=(bin/orgami install.sh script/check)
+while IFS= read -r f; do SCRIPTS+=("$f"); done < <(
+  find lib hooks -name '*.sh' -type f | sort
+)
+
+syntax() {
+  local f bad=0
+  for f in "${SCRIPTS[@]}"; do
+    bash -n "$f" || { echo "syntax error: $f" >&2; bad=1; }
+  done
+  [[ $bad == 0 ]] && echo "bash -n: ${#SCRIPTS[@]} scripts ok"
+  return $bad
+}
+
+lint() {
+  command -v shellcheck >/dev/null || {
+    echo "shellcheck not installed — skipping (CI will run it)" >&2
+    return 0
+  }
+  shellcheck --severity=warning --external-sources "${SCRIPTS[@]}" &&
+    echo "shellcheck: clean at warning severity"
+}
+
+case ${1-} in
+  --syntax-only) syntax ;;
+  --lint-only) lint ;;
+  "") syntax && lint ;;
+  *)
+    echo "usage: script/check [--syntax-only | --lint-only]" >&2
+    exit 2
+    ;;
+esac

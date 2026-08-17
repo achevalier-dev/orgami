@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Links orgami onto PATH, installs the Claude skill and the weekly timer units.
 # Safe to re-run: everything is a symlink or an overwrite.
 

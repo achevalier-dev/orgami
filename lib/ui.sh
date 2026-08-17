@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # The interactive front door: `orgami` with no arguments, and `orgami init`
 # with no arguments. Every flag form still works without gum for scripts.
 

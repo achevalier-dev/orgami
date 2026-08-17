@@ -98,11 +98,29 @@ undocumented step needed to run something. Ask the user before writing: a note
 is shared with their whole team, under their name. Keep it to a few sentences,
 written for whoever hits the same wall next, and say what the evidence was.
 
-Do not record: anything already in the code, anything specific to one session,
-secrets, or credentials.
+Never put in a note: a credential of any kind, a token, a connection string with
+a password, or the name of another client. orgami refuses those outright, at
+write time and again before anything syncs, but do not rely on the filter —
+write as if the note will be read outside the team, because a repository leaks.
+
+Point at where a value lives rather than quoting it: "the key is in SSM under
+`/prod/parse/config`", never the key.
+
+**Replace rather than pile up.** If a note is now wrong or has been fixed,
+supersede it instead of adding a contradicting one:
+
+```bash
+orgami note --supersede <old-id> "what is true now"
+```
+
+The old note stops appearing everywhere at once. `orgami stale` lists notes old
+enough to deserve a second look. Say when a note you are relying on looks out of
+date rather than trusting it silently.
 
 `orgami sync` exchanges notes with the docs repo — it pushes, so treat it like
-`publish` and only run it when the user asks. `orgami join` sets a new machine up from
+`publish` and only run it when the user asks. Where the team has review turned
+on, it opens a pull request instead of committing, so a person sees every note
+before it reaches everyone. `orgami join` sets a new machine up from
 whatever map the organization has already published, without scanning anything.
 
 ## Other tools on the same map

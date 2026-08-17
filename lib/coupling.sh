@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Which repos keep changing together. Read out of the cached pull requests,
 # so it grows sharper every week the timer runs. Nothing static can see this.
 

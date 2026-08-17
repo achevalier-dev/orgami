@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami pull — cache merged PRs for a week from the GitHub GraphQL search API.
 # Re-running the same week overwrites its cache file; nothing else is touched.
 

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami doc — render map/graph.json into map/ARCHITECTURE.md.
 # Deterministic. --narrate adds one Claude-written intro on top of the same facts.
 

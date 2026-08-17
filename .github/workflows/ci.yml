@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: shellcheck and syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n every script
+        run: ./script/check --syntax-only
+
+      - name: shellcheck
+        run: shellcheck --version && ./script/check --lint-only
+
+  jq:
+    name: jq and json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: every jq program parses
+        run: |
+          for f in lib/*.jq; do
+            echo "== $f"
+            jq -n -f "$f" </dev/null >/dev/null || exit 1
+          done
+
+      - name: every manifest is valid json
+        run: |
+          for f in manifest.json .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+            echo "== $f"
+            jq empty "$f" || exit 1
+          done
+
+      - name: the plugin version matches the manifest
+        run: |
+          a=$(jq -r .version manifest.json)
+          b=$(jq -r .version .claude-plugin/plugin.json)
+          [[ "$a" == "$b" ]] || { echo "manifest.json says $a, plugin.json says $b"; exit 1; }
+        shell: bash
+
+  cli:
+    name: cli runs without a company
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: help and version work on a bare machine
+        run: |
+          ./bin/orgami --help >/dev/null
+          ./bin/orgami --version
+
+      - name: the session hook stays silent outside a mapped repo
+        run: |
+          out=$(HOME=$(mktemp -d) bash hooks/session-context.sh || true)
+          [[ -z "$out" ]] || { echo "hook printed something with no orgami config:"; echo "$out"; exit 1; }
+        shell: bash

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared memory for a team. One file per note, so five people writing at once
 # never conflict; the docs repo is the sync layer, so there is nothing to host.
 
@@ -52,10 +53,12 @@ notes_screen() {
     done
   done < <(companies)
 
-  grep -qE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}' <<<"$text" &&
+  if grep -qE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}' <<<"$text"; then
     warnings+=("contains an email address")
-  grep -qE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' <<<"$text" &&
+  fi
+  if grep -qE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' <<<"$text"; then
     warnings+=("contains an IP address")
+  fi
 
   local w
   for w in "${warnings[@]}"; do
@@ -73,6 +76,11 @@ notes_screen() {
   return 1
 }
 
+# Everything after the frontmatter. A sed range cannot do this reliably.
+notes_body() {
+  awk 'f { print } /^---$/ { c++; if (c == 2) f = 1 }' "$1"
+}
+
 notes_slug() {
   tr '[:upper:]' '[:lower:]' <<<"$1" |
     sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40
@@ -83,8 +91,10 @@ notes_repo_here() {
   local guess
   guess=$(card_repo_here 2>/dev/null || true)
   [[ -n $guess ]] || return 0
-  jq -e --arg r "$guess" 'any(.[]; .name == $r)' "$DIR/map/repos.json" >/dev/null 2>&1 &&
+  if jq -e --arg r "$guess" 'any(.[]; .name == $r)' "$DIR/map/repos.json" >/dev/null 2>&1; then
     echo "$guess"
+  fi
+  return 0
 }
 
 cmd_note() {
@@ -228,14 +238,34 @@ notes_for_repo() {
 
 cmd_notes() {
   load_company
-  local repo="" tag="" query=""
+  local repo="" tag="" query="" check=0
   while [[ $# -gt 0 ]]; do
     case $1 in
       --repo | -r) repo=$2; shift 2 ;;
       --tag | -t) tag=$2; shift 2 ;;
+      --check) check=1; shift ;;
       *) query="$*"; break ;;
     esac
   done
+
+  # Screen every note on disk, including ones that arrived from teammates.
+  if [[ $check == 1 ]]; then
+    local f bad=0
+    for f in "$DIR"/notes/*.md; do
+      [[ -f $f ]] || continue
+      if ! notes_screen "$(notes_body "$f")" "$COMPANY"; then
+        echo "  ^ $(basename "$f")" >&2
+        bad=$((bad + 1))
+      fi
+    done
+    if [[ $bad -eq 0 ]]; then
+      echo "all notes pass screening"
+    else
+      echo "$bad note(s) need attention" >&2
+      return 1
+    fi
+    return 0
+  fi
 
   [[ -d $DIR/notes ]] || die "no notes yet — write one with: orgami note \"...\""
 
@@ -291,12 +321,11 @@ cmd_prune() {
     dead=$(grep -h '^supersedes:' "$DIR"/notes/*.md 2>/dev/null | sed 's/^supersedes:[[:space:]]*//' | sort -u)
     while read -r d; do
       [[ -n $d ]] || continue
-      for f in "$DIR"/notes/"$d".md; do
-        [[ -f $f ]] || continue
-        mv "$f" "$DIR/notes/archive/"
-        moved=$((moved + 1))
-        echo "archived $d"
-      done
+      f="$DIR/notes/$d.md"
+      [[ -f $f ]] || continue
+      mv "$f" "$DIR/notes/archive/"
+      moved=$((moved + 1))
+      echo "archived $d"
     done <<<"$dead"
   fi
 
@@ -314,6 +343,7 @@ cmd_prune() {
 }
 
 # Two-way: take what the team wrote, hand over what you wrote.
+# shellcheck disable=SC2120  # flags come from the dispatcher, not a caller here
 cmd_sync() {
   load_company
   need git
@@ -369,30 +399,58 @@ cmd_sync() {
     pulled=$((pulled + 1))
   done
 
+  # Last check before anything leaves this machine. A note written by hand, or
+  # by an older version, gets the same screening as one written by the CLI.
+  local blocked=0
   for f in "$DIR"/notes/*.md; do
     [[ -f $f ]] || continue
     base=$(basename "$f")
     [[ -f $remote/$base ]] && continue
+    if ! notes_screen "$(notes_body "$f")" "$COMPANY" 2>/dev/null; then
+      log "not syncing $base — it does not pass screening; run: orgami notes --check"
+      blocked=$((blocked + 1))
+      continue
+    fi
     cp "$f" "$remote/$base"
     pushed=$((pushed + 1))
   done
+  [[ $blocked -gt 0 ]] && log "$blocked note(s) held back"
 
   if [[ -n $(git -C "$work" status --porcelain) ]]; then
-    local msg="notes($COMPANY): $pushed from $(notes_author)"
+    local msg
+    msg="notes($COMPANY): $pushed from $(notes_author)"
     [[ $removed -gt 0 ]] && msg="$msg, $removed removed"
     git -C "$work" add -A "$path/notes"
 
     if [[ $review == 1 ]]; then
       need gh
-      local branch="orgami-notes/$(notes_author)-$(date -u +%Y%m%d-%H%M%S)"
-      git -C "$work" checkout --quiet -b "$branch"
-      git -C "$work" commit --quiet -m "$msg"
+      # One branch per author, reused. Syncing twice before anyone reviews adds
+      # to the open pull request instead of opening a second one.
+      local branch base existing
+      branch="orgami-notes/$(notes_author)"
+      if git -C "$work" fetch --quiet origin "$branch" 2>/dev/null; then
+        git -C "$work" checkout --quiet -B "$branch" FETCH_HEAD
+      else
+        git -C "$work" checkout --quiet -B "$branch"
+      fi
+      git -C "$work" add -A "$path/notes"
+      git -C "$work" commit --quiet -m "$msg" || true
       git -C "$work" push --quiet -u origin "$branch" || die "could not push $branch"
-      ( cd "$work" && gh pr create --fill --title "$msg" \
-          --body "Notes written with \`orgami note\`. Merging publishes them to everyone on $COMPANY.
+
+      base=$(git -C "$work" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||')
+      [[ -n $base ]] || base=main
+      existing=$(cd "$work" && gh pr list --head "$branch" --state open \
+        --json number --jq '.[0].number // empty' 2>/dev/null || true)
+
+      if [[ -n $existing ]]; then
+        log "updated pull request #$existing"
+      else
+        ( cd "$work" && gh pr create --head "$branch" --base "$base" --title "$msg" \
+            --body "Notes written with \`orgami note\`. Merging publishes them to everyone on $COMPANY.
 
 Review for: anything that should not be shared, anything already stale, anything better fixed in the code than written down." ) ||
-        log "branch pushed, but the pull request was not created — open it by hand"
+          log "branch pushed, but the pull request was not created — open it by hand"
+      fi
       git -C "$work" checkout --quiet -
     else
       git -C "$work" commit --quiet -m "$msg"

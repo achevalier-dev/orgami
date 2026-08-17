@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # One page per repo, and the bundle an agent reads before touching it.
 
 # Recent merged PRs for a repo, newest first, out of the cached weeks.

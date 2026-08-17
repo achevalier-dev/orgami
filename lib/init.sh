@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami init / use / list — one directory per company.
 
 cmd_init() {

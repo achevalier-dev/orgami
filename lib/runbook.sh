@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # The operational half of the map: how a repo runs, how it ships, what breaks,
 # and what the team has already learned the hard way. Everything here is derived
 # or quoted — no model writes any of it.
@@ -402,9 +403,9 @@ runbook_incidents_page() {
 
     echo "## Where the fires start"
     echo
-    for f in $(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null); do
+    while IFS= read -r -d '' f; do
       sed -n '/^## What got fixed/,/^## [A-Z]/p;/^## Security/,/^## [A-Z]/p' "$f" | grep '^- '
-    done | grep -oE '/[A-Za-z0-9_.-]+#[0-9]+' | sed -E 's|/([^#]+)#.*|\1|' |
+    done < <(find "$DIR/reports" -maxdepth 1 -name '*.md' -print0 2>/dev/null) | grep -oE '/[A-Za-z0-9_.-]+#[0-9]+' | sed -E 's|/([^#]+)#.*|\1|' |
       sort | uniq -c | sort -rn | head -10 |
       awk '{printf "- **%s** — named in %d recorded failures\n", $2, $1}'
     echo

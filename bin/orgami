@@ -33,6 +33,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
 
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
+  orgami notes --check                  screen every note for anything shareable
   orgami sync [--pr]                    exchange notes through the docs repo
   orgami stale [days]                   notes old enough to need a second look
   orgami prune --superseded | --id <id> archive notes that have had their day

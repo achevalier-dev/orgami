@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami report — deterministic stats by jq, narrative by claude.
 # Numbers never come from the model.
 

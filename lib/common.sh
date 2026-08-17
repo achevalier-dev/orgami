@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers: paths, config access, company selection.
 
 ORGAMI_HOME="${ORGAMI_HOME:-$HOME/.orgami}"
@@ -72,6 +73,7 @@ current_company() {
 }
 
 # Sets COMPANY, DIR, ORG for the rest of a subcommand.
+# shellcheck disable=SC2034  # ORG is read by the other libs sourced alongside this one
 load_company() {
   COMPANY=$(current_company)
   DIR=$(company_dir "$COMPANY")

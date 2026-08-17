@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami scan — walk every repo in the org and write map/graph.json.
 # Every edge carries file:line evidence. Nothing in the graph is inferred by a model.
 
@@ -68,16 +69,15 @@ scan_deploy() {
   [[ -f $src/Procfile ]] && emit_tool "$repo" procfile Procfile
   [[ -f $src/ansible.cfg ]] && emit_tool "$repo" ansible ansible.cfg
 
-  for f in fly.toml; do
-    [[ -f $src/$f ]] || continue
-    emit_tool "$repo" fly "$f"
+  if [[ -f $src/fly.toml ]]; then
+    emit_tool "$repo" fly fly.toml
     local app
-    app=$(grep -m1 -oE '^app\s*=\s*"?[a-z0-9-]+' "$src/$f" | grep -oE '[a-z0-9-]+$' || true)
+    app=$(grep -m1 -oE '^app\s*=\s*"?[a-z0-9-]+' "$src/fly.toml" | grep -oE '[a-z0-9-]+$' || true)
     [[ -n $app ]] && {
       emit_node "host:$app.fly.dev" host "$app.fly.dev"
-      emit_edge "repo:$repo" "host:$app.fly.dev" deploys-to "$f"
+      emit_edge "repo:$repo" "host:$app.fly.dev" deploys-to fly.toml
     }
-  done
+  fi
 
   for f in config/deploy.yml deploy.yml .kamal/deploy.yml; do
     [[ -f $src/$f ]] || continue
@@ -229,10 +229,10 @@ scan_draw() {
 }
 
 scan_progress() {
-  local total=$1 pid=$2 done
+  local total=$1 pid=$2 finished
   while kill -0 "$pid" 2>/dev/null; do
-    done=$(find "$EMITDIR/done" -type f 2>/dev/null | wc -l)
-    scan_draw "$done" "$total"
+    finished=$(find "$EMITDIR/done" -type f 2>/dev/null | wc -l)
+    scan_draw "$finished" "$total"
     sleep 0.25
   done
   scan_draw "$(find "$EMITDIR/done" -type f 2>/dev/null | wc -l)" "$total"

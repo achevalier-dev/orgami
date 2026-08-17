@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # What a repo *is*, read off its committed files: framework, how to run it,
 # what configuration it reads, what it serves, what it calls, what it already
 # tells agents. Written per repo during the scan, rendered into cards by `doc`.
@@ -12,7 +13,8 @@ PROFILE_EXCL=(--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor
 ENV_NOISE='^(NODE_ENV|ENV|ENVIRONMENT|PORT|HOST|DEBUG|LOG_LEVEL|TZ|HOME|PATH|USER|PWD|CI|npm_.*|NEXT_RUNTIME|VERCEL.*)$'
 
 profile_framework() {
-  local src=$1 pkg="$src/package.json" out=()
+  local src=$1
+  local pkg="$src/package.json" out=()
   if [[ -f $pkg ]]; then
     local deps
     deps=$(jq -r '[(.dependencies // {}), (.devDependencies // {})] | add // {} | keys[]' "$pkg" 2>/dev/null || true)
@@ -167,7 +169,8 @@ profile_calls() {
 # of them actually deploy. A repo with no deploying workflow is a fact worth
 # stating in a runbook, not a gap to paper over.
 profile_workflows() {
-  local src=$1 dir="$src/.github/workflows" f name triggers env actions deploys
+  local src=$1
+  local dir="$src/.github/workflows" f name triggers env actions deploys
   [[ -d $dir ]] || { echo '[]'; return 0; }
 
   {

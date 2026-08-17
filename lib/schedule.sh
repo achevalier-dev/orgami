@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # The weekly run, on whatever scheduler this machine has: systemd on Linux,
 # launchd on macOS, a cron line to paste anywhere else.
 

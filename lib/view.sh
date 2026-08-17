@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # orgami view — fzf TUI over the graph. orgami query — the same detail as text.
 
 # Resolves "api", "repo:api", "host:1.2.3.4" to a node id present in the graph.

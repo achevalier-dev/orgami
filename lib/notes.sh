@@ -477,6 +477,25 @@ YML
   git -C "$work" commit --quiet -m "ci(orgami): screen notes on every pull request"
   git -C "$work" push --quiet origin HEAD || die "could not push the workflow"
   echo "installed .github/workflows/orgami-notes.yml in $(cfg docs_repo)"
+
+  # A check nobody is required to pass is only advice. Make it required, if the
+  # repository's plan allows branch protection.
+  local slug branch
+  slug=$(git -C "$work" remote get-url origin |
+    sed -E 's|.*[:/]([^/]+/[^/]+?)(\.git)?$|\1|')
+  branch=$(gh api "repos/$slug" --jq .default_branch 2>/dev/null || echo main)
+  if gh api "repos/$slug/branches/$branch/protection" -X PUT \
+    -H "Accept: application/vnd.github+json" \
+    --input - >/dev/null 2>&1 <<PROT
+{"required_status_checks": {"strict": false, "contexts": ["screen"]},
+ "enforce_admins": false, "required_pull_request_reviews": null, "restrictions": null}
+PROT
+  then
+    echo "the screen check is now required to merge into $branch"
+  else
+    log "could not require the check on $branch — branch protection needs a paid plan on private repos"
+    log "the check still runs and shows on every pull request"
+  fi
 }
 
 # Two-way: take what the team wrote, hand over what you wrote.

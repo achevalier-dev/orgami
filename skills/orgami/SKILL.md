@@ -120,7 +120,8 @@ date rather than trusting it silently.
 `orgami sync` exchanges notes with the docs repo — it pushes, so treat it like
 `publish` and only run it when the user asks. Where the team has review turned
 on, it opens a pull request instead of committing, so a person sees every note
-before it reaches everyone. `orgami join` sets a new machine up from
+before it reaches everyone, and a CI check screens it for credentials. Tell the
+user their note is waiting for review rather than implying it is already shared. `orgami join` sets a new machine up from
 whatever map the organization has already published, without scanning anything.
 
 ## Other tools on the same map

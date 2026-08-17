@@ -43,6 +43,8 @@ its recent merged pull requests, and links to any `AGENTS.md` it already has.
 | Why something is the way it is | `~/.orgami/<c>/map/DECISIONS.md` |
 | What shipped recently | `~/.orgami/<c>/reports/*.md`, newest last |
 | What teammates hit before you | `orgami notes`, `orgami notes --repo <repo>` |
+| How to run, ship or unbreak it | `orgami runbook <repo>`, or `~/.orgami/<c>/map/runbooks/<repo>.md` |
+| How anything ships, org-wide | `~/.orgami/<c>/map/RUNBOOK.md` |
 | Anything needing a filter | `~/.orgami/<c>/map/graph.json`, `repos.json`, `coupling.json` |
 
 `CONVENTIONS.md` is the one to read before writing code: it gathers every
@@ -54,6 +56,29 @@ over the default.
 accepted, things deprecated — each bullet carrying the pull request it came
 from. Read it before proposing a change that might already have been decided
 against.
+
+## Runbooks
+
+`orgami runbook <repo>` answers the operational questions: what runs it, what
+ships it and on which trigger, which health endpoint it serves, where its alerts
+go, what changes alongside it, and what the weekly recaps recorded as *do not*.
+All of it derived and cited — no model wrote any of it.
+
+A repo with no deploying workflow says so plainly. That is a real finding, not a
+gap: it means shipping happens somewhere the scan cannot see, and it is worth
+asking the user and recording the answer.
+
+Six note tags file straight into a runbook section — `setup`, `deploy`,
+`rollback`, `incident`, `gotcha`, `oncall`:
+
+```bash
+orgami note --repo scraphome --tag rollback "Re-run the previous deploy workflow from its commit"
+```
+
+**When you learn something operational the runbook does not have** — how to roll
+back, the real first thing to check when it breaks, a prerequisite nobody wrote
+down — offer to record it with the matching tag. It lands in that repo's runbook
+for everyone the next time `orgami doc` runs.
 
 ## Shared team memory
 

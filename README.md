@@ -212,6 +212,14 @@ Three files sit alongside the map and answer the questions a map cannot:
   week: what was adopted or dropped, what constraint was accepted, what was
   rejected and why. One fragment per week, so the record only grows. Every
   bullet carries its pull request.
+- **`RUNBOOK.md` and `runbooks/<repo>.md`** — the operational half. Per repo:
+  how to run it, which workflow ships it and on what trigger, the health
+  endpoint it serves, where its alerts go, what it drags with it when it
+  changes, and what the recaps already recorded as *do not*. A repo with no
+  deploying workflow says so — that is a finding, not a blank. Six note tags
+  (`setup`, `deploy`, `rollback`, `incident`, `gotcha`, `oncall`) file a note
+  straight into the matching section, so the page gets better every time
+  somebody loses an afternoon and writes it down.
 - **`coupling.json`** — which repos keep landing changes together, counted by
   same-day and same-week co-occurrence, bots excluded. Correlation, not
   dependency, and labelled as such — but it is the blast radius no static scan

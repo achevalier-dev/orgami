@@ -278,7 +278,7 @@ cmd_scan() {
   total=$(grep -c . "$REPOLIST" || true)
   [[ $total -gt 0 ]] || die "no repositories to scan in $ORG"
   ((jobs > total)) && jobs=$total
-  log "$total active repos · $jobs at a time"
+  log "$total active repos"
 
   EMITDIR=$(mktemp -d)
   mkdir -p "$EMITDIR/done"

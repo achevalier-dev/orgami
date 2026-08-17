@@ -186,6 +186,11 @@ cmd_weekly() {
   fi
   if [[ -n $(cfg docs_repo) ]]; then
     cmd_sync || true
+    # Read whatever is waiting for review, so notes do not sit for a week.
+    if [[ $(cfg notes_review false) == true ]]; then
+      source "$ROOT/lib/notes.sh"
+      cmd_review --auto || true
+    fi
     cmd_publish --yes
   else
     log "no docs_repo configured — report left in $DIR/reports"

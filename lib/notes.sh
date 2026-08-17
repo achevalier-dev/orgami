@@ -369,13 +369,16 @@ cmd_review() {
   load_company
   need gh
 
-  local install=0
+  local install=0 auto=0 merge=0
   while [[ $# -gt 0 ]]; do
     case $1 in
       --install-check) install=1; shift ;;
+      --auto) auto=1; shift ;;
+      --merge) merge=1; shift ;;
       *) die "unknown flag: $1" ;;
     esac
   done
+  [[ $(cfg notes_auto_merge false) == true ]] && merge=1
 
   local repo path work
   repo=$(cfg docs_repo)
@@ -395,6 +398,12 @@ cmd_review() {
   local n
   while read -r n; do
     [[ -n $n ]] || continue
+
+    if [[ $auto == 1 ]]; then
+      review_auto "$work" "$n" "$merge"
+      continue
+    fi
+
     echo
     printf '\033[1m#%s — %s\033[0m\n' "$n" \
       "$(jq -r --argjson n "$n" '.[] | select(.number == $n) | .title' <<<"$prs")"
@@ -426,6 +435,106 @@ cmd_review() {
       echo "  merge: gh pr merge $n --squash --delete-branch --repo $(basename "${repo%.git}")"
     fi
   done < <(jq -r '.[].number' <<<"$prs")
+}
+
+# A second reader, when there is no second person. Judges the notes waiting for
+# review against everything already recorded, comments on the pull request, and
+# merges only if every note passes.
+review_auto() {
+  local work=$1 n=$2 merge=$3
+  need claude
+
+  local files bodies
+  files=$( (cd "$work" && gh pr diff "$n" --name-only 2>/dev/null) | grep '/notes/.*\.md$' || true)
+  [[ -n $files ]] || { log "#$n adds no notes"; return 0; }
+
+  # The notes under review, straight from the branch — fetched once, not per file.
+  local head f
+  head=$(cd "$work" && gh pr view "$n" --json headRefName --jq .headRefName 2>/dev/null)
+  [[ -n $head ]] || { log "could not resolve the branch for #$n"; return 0; }
+  git -C "$work" fetch --quiet origin "$head" 2>/dev/null || true
+
+  bodies=$(mktemp)
+  while read -r f; do
+    [[ -n $f ]] || continue
+    # A pull request that prunes a note lists a file that is not on the branch.
+    local content
+    content=$(git -C "$work" show "FETCH_HEAD:$f" 2>/dev/null || true)
+    [[ -n $content ]] || continue
+    jq -Rns --arg file "$f" --arg text "$content" '{file: $file, text: $text}'
+  done <<<"$files" | jq -s '.' >"$bodies"
+
+  [[ $(jq 'length' "$bodies") -gt 0 ]] || { log "could not read the notes on #$n"; return 0; }
+
+  # Everything already known, genuinely minus the notes under review — they are
+  # already on this machine, so without this every note looks like its own duplicate.
+  local existing under_review
+  under_review=$(jq -r '[.[] | .text | capture("id: (?<id>[^\n]+)").id] // []' "$bodies" 2>/dev/null || echo '[]')
+  existing=$(mktemp)
+  {
+    notes_index 2>/dev/null |
+      jq -r --argjson under "$under_review" '
+        [.[] | select(.id as $i | ($under | index($i)) | not)][]
+        | "- [\(.id)] \(.repo // "org"): \(.body | gsub("\\n"; " ") | .[0:240])"'
+    if [[ -f $DIR/map/DECISIONS.md ]]; then
+      echo
+      echo "Decisions already recorded:"
+      grep -E '^- ' "$DIR/map/DECISIONS.md" | head -40
+    fi
+  } >"$existing"
+
+  local model verdicts raw
+  raw=$(mktemp)
+  model=$(cfg report_model claude-sonnet-5)
+  log "reading #$n with $model"
+  {
+    cat "$ROOT/prompts/note-review.md"
+    printf '\n\nNEW_NOTES\n```json\n'
+    cat "$bodies"
+    printf '\n```\n\nEXISTING\n```\n'
+    cat "$existing"
+    printf '\n```\n'
+  } | claude -p --model "$model" --output-format text >"$raw" 2>/dev/null || true
+
+  # Everything from the first brace onwards, code fences stripped.
+  verdicts=$(sed -e '/^[[:space:]]*```/d' "$raw" |
+    sed -n '/^[[:space:]]*{/,$p' | jq -c '.' 2>/dev/null || true)
+  [[ -n $verdicts ]] || log "reviewer did not return JSON: $(head -c 100 "$raw")"
+  rm -f "$bodies" "$existing" "$raw"
+
+  if [[ -z $verdicts ]]; then
+    log "the reviewer did not return usable JSON — leaving #$n for a person"
+    return 0
+  fi
+
+  local body
+  body=$(jq -r '
+    "**orgami reviewed these notes.** " + (.summary // "") + "\n\n"
+    + ([.verdicts[]
+        | "- " + (if .verdict == "approve" then "✅" elif .verdict == "revise" then "✏️" else "🚫" end)
+          + " `" + .id + "` — " + .reason
+          + (if (.supersedes // "") != "" then "\n  Supersede instead: `orgami note --supersede " + .supersedes + " \"...\"`" else "" end)]
+       | join("\n"))
+    + "\n\n<sub>A judgement, not a gate. The credential screening above is the gate.</sub>"' <<<"$verdicts")
+
+  (cd "$work" && gh pr comment "$n" --body "$body") >/dev/null &&
+    echo "commented on #$n"
+
+  local bad
+  bad=$(jq '[.verdicts[] | select(.verdict != "approve")] | length' <<<"$verdicts")
+  jq -r '.verdicts[] | "  " + (if .verdict == "approve" then "approve" else .verdict end) + "  " + .id' <<<"$verdicts"
+
+  if [[ $bad -gt 0 ]]; then
+    echo "$bad note(s) need work — #$n left open"
+    return 0
+  fi
+
+  if [[ $merge == 1 ]]; then
+    (cd "$work" && gh pr merge "$n" --squash --delete-branch) &&
+      echo "merged #$n"
+  else
+    echo "#$n is clean — merge it with: orgami review --auto --merge"
+  fi
 }
 
 # The check that makes review mean something: it runs on every pull request.

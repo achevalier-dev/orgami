@@ -117,6 +117,11 @@ The old note stops appearing everywhere at once. `orgami stale` lists notes old
 enough to deserve a second look. Say when a note you are relying on looks out of
 date rather than trusting it silently.
 
+If the user asks whether their notes are any good, or wants the waiting ones
+looked at, `orgami review --auto` reads them against everything already recorded
+and comments a verdict per note on the pull request. Report what it said rather
+than merging on your own.
+
 `orgami sync` exchanges notes with the docs repo — it pushes, so treat it like
 `publish` and only run it when the user asks. Where the team has review turned
 on, it opens a pull request instead of committing, so a person sees every note

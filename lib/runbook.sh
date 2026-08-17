@@ -3,7 +3,7 @@
 # or quoted — no model writes any of it.
 
 # Tags that place a note into a runbook section. Anything else stays a plain note.
-RUNBOOK_TAGS=(setup deploy rollback incident gotcha oncall)
+RUNBOOK_TAGS=(setup deploy rollback incident alert gotcha oncall)
 
 runbook_tag_heading() {
   case $1 in
@@ -11,6 +11,7 @@ runbook_tag_heading() {
     deploy) echo "Deploying it" ;;
     rollback) echo "Rolling it back" ;;
     incident) echo "When it broke before" ;;
+    alert) echo "When an alert fires" ;;
     gotcha) echo "Traps" ;;
     oncall) echo "Who to reach" ;;
     *) echo "$1" ;;
@@ -39,6 +40,19 @@ runbook_constraints() {
       sed -n '/^## Action required/,/^## /p' "$f" 2>/dev/null | grep -- "/$repo#" || true
     done
   } 2>/dev/null | sed 's/^- //' | sort -u | head -12
+}
+
+# Everything the weekly recaps recorded as broken in this repo, verbatim and
+# newest first. They are already written as symptom, real cause, and the pull
+# request that fixed it — which is what a runbook entry is.
+runbook_seen_before() {
+  local repo=$1 f week
+  for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null | sort -r); do
+    week=$(basename "$f" .md)
+    sed -n '/^## What got fixed/,/^## [A-Z]/p;/^## Security/,/^## [A-Z]/p' "$f" 2>/dev/null |
+      grep '^- ' | grep -- "/$repo#" |
+      sed "s|^- |- |; s|\$| <sub>$week</sub>|"
+  done | head -20
 }
 
 runbook_render() {
@@ -196,7 +210,19 @@ runbook_render() {
     echo
   fi
 
+  local seen
+  seen=$(runbook_seen_before "$repo")
+  if [[ -n $seen ]]; then
+    echo "## Seen before"
+    echo
+    echo "$seen"
+    echo
+    echo "Straight out of the weekly recaps — symptom, cause, and the pull request that fixed it. If one of these recurs, start here."
+    echo
+  fi
+
   runbook_section "$repo" incident
+  runbook_section "$repo" alert
   runbook_section "$repo" gotcha
   runbook_section "$repo" oncall
 
@@ -335,6 +361,102 @@ runbook_org() {
   echo "$out" >&2
 }
 
+# The page you open while something is broken: what pages you, what has broken
+# before and what it turned out to be, and where the fires keep starting.
+runbook_incidents_page() {
+  local out="$DIR/map/INCIDENTS.md"
+  local profiles="$DIR/map/repos.json" f week
+
+  {
+    echo "# $COMPANY — incidents"
+    echo
+    echo "What pages you, what has broken before, and what it turned out to be."
+    echo "Assembled from the weekly recaps and what the team has recorded. Every"
+    echo "entry carries the pull request that fixed it."
+    echo
+
+    echo "## What pages you"
+    echo
+    echo "| Repo | Alerting through | Health endpoint |"
+    echo "|---|---|---|"
+    jq -r '.[] | .name as $n
+      | ([.env[]? | (match("SENTRY|BETTERSTACK|DATADOG|NEW_?RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG") | .string)] | unique) as $a
+      | ([.routes[]? | select(test("/(health|healthz|status|ping|ready|live)"; "i"))] | .[0]) as $h
+      | select(($a | length) > 0 or $h != null)
+      | "| [" + $n + "](runbooks/" + $n + ".md) | "
+        + (if ($a | length) > 0 then ($a | join(", ")) else "—" end) + " | "
+        + (if $h != null then "`" + $h + "`" else "—" end) + " |"' "$profiles"
+    echo
+
+    local silent
+    silent=$(jq -r '.[] | select([.env[]? | select(test("SENTRY|BETTERSTACK|DATADOG|NEW_?RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG"))] | length == 0)
+      | select([.routes[]? | select(test("/(health|healthz|status|ping|ready|live)"; "i"))] | length == 0)
+      | .name' "$profiles" | sort | paste -sd, - | sed 's/,/, /g')
+    if [[ -n $silent ]]; then
+      echo "**Nothing reports on these:** $silent"
+      echo
+      echo "No alerting provider configured and no health endpoint served. If one of"
+      echo "them breaks, you find out from a person."
+      echo
+    fi
+
+    echo "## Where the fires start"
+    echo
+    for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null); do
+      sed -n '/^## What got fixed/,/^## [A-Z]/p;/^## Security/,/^## [A-Z]/p' "$f" | grep '^- '
+    done | grep -oE '/[A-Za-z0-9_.-]+#[0-9]+' | sed -E 's|/([^#]+)#.*|\1|' |
+      sort | uniq -c | sort -rn | head -10 |
+      awk '{printf "- **%s** — named in %d recorded failures\n", $2, $1}'
+    echo
+
+    echo "## Everything recorded so far"
+    echo
+    for f in $(find "$DIR/reports" -name '*.md' 2>/dev/null | sort -r); do
+      week=$(basename "$f" .md)
+      local fixes
+      fixes=$(sed -n '/^## What got fixed/,/^## [A-Z]/p' "$f" | grep '^- ')
+      local sec
+      sec=$(sed -n '/^## Security/,/^## [A-Z]/p' "$f" | grep '^- ')
+      [[ -n $fixes || -n $sec ]] || continue
+      echo "### $week"
+      echo
+      [[ -n $fixes ]] && { echo "$fixes"; echo; }
+      if [[ -n $sec ]]; then
+        echo "Security:"
+        echo
+        echo "$sec"
+        echo
+      fi
+    done
+
+    echo "## What the team has recorded"
+    echo
+    local recorded
+    recorded=$(notes_index 2>/dev/null | jq -r '
+      [.[] | select((.tags // "") | gsub("[\\[\\] ]"; "") | split(",")
+        | any(. == "incident" or . == "alert" or . == "gotcha"))]
+      | .[]
+      | "- " + (if (.repo // "") != "" then "**" + .repo + "** — " else "" end)
+        + (.body | gsub("^\\n+"; "") | gsub("\\n+$"; "") | gsub("\\n"; " "))
+        + " <sub>" + .author + ", " + (.date | .[0:10]) + "</sub>"' 2>/dev/null || true)
+    if [[ -n $recorded ]]; then
+      echo "$recorded"
+      echo
+    else
+      echo "Nothing yet."
+      echo
+    fi
+    echo "Next time you chase one down, leave it here for whoever gets paged next:"
+    echo
+    echo '```bash'
+    echo "orgami note --repo <repo> --tag incident   # what broke and what it turned out to be"
+    echo "orgami note --repo <repo> --tag alert      # what to do when this alert fires"
+    echo '```'
+  } >"$out"
+
+  echo "$out" >&2
+}
+
 cmd_runbook() {
   load_company
   source "$ROOT/lib/notes.sh" 2>/dev/null || true
@@ -353,5 +475,6 @@ cmd_runbook() {
     runbook_render "$n" >"$DIR/map/runbooks/$n.md" 2>/dev/null || true
   done < <(jq -r '.[].name' "$DIR/map/repos.json")
   runbook_org
+  runbook_incidents_page
   echo "$(jq 'length' "$DIR/map/repos.json") runbooks in $DIR/map/runbooks/"
 }

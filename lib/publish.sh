@@ -30,7 +30,7 @@ cmd_publish() {
   mkdir -p "$dest/reports"
   cp -f "$DIR/reports/"*.md "$dest/reports/" 2>/dev/null || true
   local f
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md graph.json repos.json coupling.json; do
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md graph.json repos.json coupling.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
   if compgen -G "$DIR/map/repos/*.md" >/dev/null; then
@@ -73,6 +73,10 @@ cmd_weekly() {
   cmd_scan
   cmd_coupling
   cmd_doc
+  if [[ $(jq -r '(.workspaces // []) | length' "$DIR/config.json") -gt 0 ]]; then
+    source "$ROOT/lib/agents.sh"
+    cmd_agents --refresh || true
+  fi
   if [[ -n $(cfg docs_repo) ]]; then
     cmd_sync || true
     cmd_publish --yes

@@ -105,6 +105,7 @@ doc_runbooks() {
     runbook_render "$n" >"$DIR/map/runbooks/$n.md" 2>/dev/null || true
   done < <(jq -r '.[].name' "$DIR/map/repos.json")
   runbook_org
+  runbook_incidents_page
 }
 
 cmd_doc() {

@@ -29,9 +29,11 @@ orgami        # the menu
 orgami init   # add a company, step by step
 ```
 
-`orgami init` picks the organization from the ones your `gh` token can see,
-lists that org's repos to choose where the report gets committed, and offers to
-run the first recap, the first scan and the weekly timer before it exits. Bare
+`orgami init` picks the organization from the ones your `gh` token can see, then
+asks where the weekly report should be committed — an existing repo in that org,
+a new one it creates for you (`orgami-reports` by default, private or public),
+a git URL you type, or nowhere at all. It ends by offering the first recap, the
+first scan and the weekly timer, one confirm each. Bare
 `orgami` opens a menu over whichever company is current — browse the map, read
 the last recap, write this week's, rebuild, publish, switch client.
 

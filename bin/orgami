@@ -34,8 +34,11 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
   orgami notes --check                  screen every note for anything shareable
+  orgami notes --rejected               notes the reviewer sent back, and why
+  orgami notes --pending                written here, not yet published
   orgami sync [--pr]                    exchange notes through the docs repo
   orgami sync --pull [--max-age MIN]    take what the team wrote, push nothing
+  orgami autosync                       reconcile everything: pull, push, review, merge
   orgami review [--auto [--merge]]      read and merge the notes waiting for review
   orgami review --install-check         gate the docs repo with a CI screen
   orgami screen <file>...               screen note files — what CI runs
@@ -125,7 +128,7 @@ case $cmd in
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
     ;;
-  note | notes | sync | join | prune | stale | review | screen)
+  note | notes | sync | join | prune | stale | review | screen | autosync)
     source "$ROOT/lib/notes.sh"
     "cmd_$cmd" "$@"
     ;;

@@ -31,6 +31,10 @@ cd "${CURSOR_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}" 2>/dev/null || true
 # every half hour, and never let a slow network hold up the session.
 timeout 6 "$ORGAMI" sync --pull --max-age 30 --quiet >/dev/null 2>&1 || true
 
+# Everything else — publishing what this machine wrote, having it reviewed,
+# merging it if it passes — happens detached, so the session never waits.
+"$ORGAMI" autosync --background --quiet >/dev/null 2>&1 || true
+
 brief=$("$ORGAMI" brief 2>/dev/null) || exit 0
 [[ -n $brief ]] || { [[ $JSON == 1 ]] && echo '{}'; exit 0; }
 

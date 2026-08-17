@@ -181,7 +181,12 @@ cmd_note() {
   } >"$file"
 
   echo "$file"
-  [[ $push == 1 ]] && cmd_sync
+  if [[ $push == 1 ]]; then
+    cmd_sync
+  elif [[ $(cfg notes_autosync false) == true ]]; then
+    cmd_autosync --background
+    log "publishing in the background — orgami notes --pending to watch it"
+  fi
   return 0
 }
 
@@ -238,15 +243,49 @@ notes_for_repo() {
 
 cmd_notes() {
   load_company
-  local repo="" tag="" query="" check=0
+  local repo="" tag="" query="" check=0 rejected=0 pending=0
   while [[ $# -gt 0 ]]; do
     case $1 in
       --repo | -r) repo=$2; shift 2 ;;
       --tag | -t) tag=$2; shift 2 ;;
       --check) check=1; shift ;;
+      --rejected | --held) rejected=1; shift ;;
+      --pending | --unpublished) pending=1; shift ;;
       *) query="$*"; break ;;
     esac
   done
+
+  if [[ $pending == 1 ]]; then
+    local work known f base n=0
+    work="$DIR/cache/docs"
+    git -C "$work" fetch --quiet origin 2>/dev/null || true
+    known=$(git -C "$work" ls-tree -r --name-only origin/HEAD -- "$(cfg docs_path orgami)/notes" 2>/dev/null |
+      sed 's|.*/||' || true)
+    for f in "$DIR"/notes/*.md; do
+      [[ -f $f ]] || continue
+      base=$(basename "$f")
+      grep -qxF "$base" <<<"$known" && continue
+      echo "$base"
+      notes_body "$f" | sed 's/^/  /' | head -3
+      n=$((n + 1))
+    done
+    [[ $n -gt 0 ]] || echo "everything this machine wrote has been published"
+    return 0
+  fi
+
+  if [[ $rejected == 1 ]]; then
+    local f
+    compgen -G "$DIR/notes/archive/*.md" >/dev/null 2>&1 ||
+      { echo "nothing has been held back"; return 0; }
+    for f in "$DIR"/notes/archive/*.md; do
+      grep -q '^<!-- orgami review:' "$f" || continue
+      echo "$(basename "$f" .md)"
+      sed -n 's|^<!-- orgami review: \(.*\) -->$|  \1|p' "$f"
+      notes_body "$f" | grep -v '^<!-- orgami review' | sed 's/^/  /' | head -4
+      echo
+    done
+    return 0
+  fi
 
   # Screen every note on disk, including ones that arrived from teammates.
   if [[ $check == 1 ]]; then
@@ -379,6 +418,7 @@ cmd_review() {
     esac
   done
   [[ $(cfg notes_auto_merge false) == true ]] && merge=1
+  [[ $(cfg notes_autosync false) == true ]] && { auto=1; merge=1; }
 
   local repo path work
   repo=$(cfg docs_repo)
@@ -464,7 +504,17 @@ review_auto() {
     jq -Rns --arg file "$f" --arg text "$content" '{file: $file, text: $text}'
   done <<<"$files" | jq -s '.' >"$bodies"
 
-  [[ $(jq 'length' "$bodies") -gt 0 ]] || { log "could not read the notes on #$n"; return 0; }
+  # A pull request that only removes notes has nothing to judge.
+  if [[ $(jq 'length' "$bodies") -eq 0 ]]; then
+    rm -f "$bodies"
+    if [[ $merge == 1 ]]; then
+      (cd "$work" && gh pr merge "$n" --squash --delete-branch) &&
+        echo "merged #$n (removals only, nothing to review)"
+    else
+      log "#$n only removes notes — merge it with: orgami review --auto --merge"
+    fi
+    return 0
+  fi
 
   # Everything already known, genuinely minus the notes under review — they are
   # already on this machine, so without this every note looks like its own duplicate.
@@ -523,6 +573,39 @@ review_auto() {
   local bad
   bad=$(jq '[.verdicts[] | select(.verdict != "approve")] | length' <<<"$verdicts")
   jq -r '.verdicts[] | "  " + (if .verdict == "approve" then "approve" else .verdict end) + "  " + .id' <<<"$verdicts"
+
+  if [[ $bad -gt 0 && $merge == 1 ]]; then
+    # Nobody is coming to revise these. Take them out of the batch, with the
+    # reason kept on the archived copy, so the notes that passed can land.
+    local id reason verdict
+    while read -r id; do
+      [[ -n $id ]] || continue
+      verdict=$(jq -r --arg i "$id" '.verdicts[] | select(.id == $i) | .verdict' <<<"$verdicts")
+      reason=$(jq -r --arg i "$id" '.verdicts[] | select(.id == $i) | .reason' <<<"$verdicts")
+      if [[ -f $DIR/notes/$id.md ]]; then
+        mkdir -p "$DIR/notes/archive"
+        {
+          cat "$DIR/notes/$id.md"
+          echo
+          echo "<!-- orgami review: $verdict — $reason -->"
+        } >"$DIR/notes/archive/$id.md"
+        rm -f "$DIR/notes/$id.md"
+        echo "  held back: $id ($verdict)"
+      fi
+    done < <(jq -r '.verdicts[] | select(.verdict != "approve") | .id' <<<"$verdicts")
+
+    # Push the removals so the pull request holds only what passed.
+    cmd_sync --quiet >/dev/null 2>&1 || true
+
+    local left
+    left=$(jq '[.verdicts[] | select(.verdict == "approve")] | length' <<<"$verdicts")
+    if [[ $left -eq 0 ]]; then
+      echo "nothing passed — #$n has no notes left to merge"
+      (cd "$work" && gh pr close "$n" --delete-branch) >/dev/null 2>&1 || true
+      return 0
+    fi
+    bad=0
+  fi
 
   if [[ $bad -gt 0 ]]; then
     echo "$bad note(s) need work — #$n left open"
@@ -607,6 +690,61 @@ PROT
   fi
 }
 
+# Everything, reconciled, in one idempotent pass: take what the team merged,
+# publish what this machine wrote, have it reviewed, merge it if it passes.
+# Safe to run constantly — a lock keeps runs from stacking, and every guard
+# still applies.
+cmd_autosync() {
+  load_company
+
+  local quiet=0 background=0
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --quiet | -q) quiet=1; shift ;;
+      --background | --detach) background=1; shift ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+
+  [[ -n $(cfg docs_repo) ]] || { [[ $quiet == 1 ]] && return 0; die "no docs_repo configured"; }
+
+  if [[ $background == 1 ]]; then
+    # Detached, so nothing waits on the network or on a model.
+    (setsid "$ORGAMI_BIN" autosync --quiet >>"$DIR/cache/autosync.log" 2>&1 &) 2>/dev/null ||
+      ("$ORGAMI_BIN" autosync --quiet >>"$DIR/cache/autosync.log" 2>&1 &)
+    return 0
+  fi
+
+  local lock="$DIR/cache/.autosync.lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    # A run older than ten minutes died holding the lock.
+    local held
+    held=$(( ( $(date +%s) - $(stat -c %Y "$lock" 2>/dev/null || echo 0) ) / 60 ))
+    [[ $held -lt 10 ]] && { [[ $quiet == 1 ]] || echo "another autosync is running"; return 0; }
+    rm -rf "$lock"
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  trap 'rm -rf "$lock"' EXIT
+
+  {
+    echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) autosync $COMPANY"
+    cmd_sync || echo "sync failed"
+
+    # Read whatever is waiting and merge it if every note passes. The reviewer
+    # is a judgement; the credential screen and the CI check are the gates.
+    if [[ $(cfg notes_review false) == true ]] && command -v claude >/dev/null; then
+      cmd_review --auto || echo "review failed"
+    fi
+  } >>"$DIR/cache/autosync.log" 2>&1
+
+  if [[ $quiet == 0 ]]; then
+    tail -n 20 "$DIR/cache/autosync.log"
+  fi
+  rm -rf "$lock"
+  trap - EXIT
+  return 0
+}
+
 # Two-way: take what the team wrote, hand over what you wrote.
 # shellcheck disable=SC2120  # flags come from the dispatcher, not a caller here
 cmd_sync() {
@@ -674,8 +812,32 @@ cmd_sync() {
     return 0
   fi
 
+  # Take what the team merged, from the default branch, before switching away.
+  local pulled=0 f base
+  for f in "$remote"/*.md; do
+    [[ -f $f ]] || continue
+    base=$(basename "$f")
+    [[ -f $DIR/notes/$base || -f $DIR/notes/archive/$base ]] && continue
+    cp "$f" "$DIR/notes/$base"
+    pulled=$((pulled + 1))
+  done
+
+  # In review mode every write belongs on the author's branch. Switch now:
+  # checking out later would throw away the very changes we are about to make.
+  local branch=""
+  if [[ $review == 1 ]]; then
+    need gh
+    branch="orgami-notes/$(notes_author)"
+    if git -C "$work" fetch --quiet origin "$branch" 2>/dev/null; then
+      git -C "$work" checkout --quiet -B "$branch" FETCH_HEAD
+    else
+      git -C "$work" checkout --quiet -B "$branch"
+    fi
+    mkdir -p "$remote"
+  fi
+
   # Anything archived locally comes out of the shared repository too.
-  local removed=0 f base
+  local removed=0
   if [[ -d $DIR/notes/archive ]]; then
     for f in "$DIR"/notes/archive/*.md; do
       [[ -f $f ]] || continue
@@ -687,14 +849,7 @@ cmd_sync() {
     done
   fi
 
-  local pulled=0 pushed=0 base
-  for f in "$remote"/*.md; do
-    [[ -f $f ]] || continue
-    base=$(basename "$f")
-    [[ -f $DIR/notes/$base ]] && continue
-    cp "$f" "$DIR/notes/$base"
-    pulled=$((pulled + 1))
-  done
+  local pushed=0
 
   # Last check before anything leaves this machine. A note written by hand, or
   # by an older version, gets the same screening as one written by the CLI.
@@ -720,16 +875,9 @@ cmd_sync() {
     git -C "$work" add -A "$path/notes"
 
     if [[ $review == 1 ]]; then
-      need gh
-      # One branch per author, reused. Syncing twice before anyone reviews adds
-      # to the open pull request instead of opening a second one.
-      local branch base existing
-      branch="orgami-notes/$(notes_author)"
-      if git -C "$work" fetch --quiet origin "$branch" 2>/dev/null; then
-        git -C "$work" checkout --quiet -B "$branch" FETCH_HEAD
-      else
-        git -C "$work" checkout --quiet -B "$branch"
-      fi
+      # Already on the author's branch — one per author, reused, so syncing
+      # twice before anyone reviews updates the same pull request.
+      local base existing
       git -C "$work" add -A "$path/notes"
       git -C "$work" commit --quiet -m "$msg" || true
       git -C "$work" push --quiet -u origin "$branch" || die "could not push $branch"

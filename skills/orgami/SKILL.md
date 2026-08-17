@@ -96,11 +96,21 @@ orgami notes --repo WinIt-backend   # what has been recorded about this repo
 orgami note "..." --repo <repo> --tag gotcha
 ```
 
-**Offer to write a note when you learn something durable that is not in the
-code** — the real cause of a bug, why an obvious approach does not work here, an
-undocumented step needed to run something. Ask the user before writing: a note
-is shared with their whole team, under their name. Keep it to a few sentences,
-written for whoever hits the same wall next, and say what the evidence was.
+**Write a note when you learn something durable that is not in the code** — the
+real cause of a bug, why an obvious approach does not work here, an undocumented
+step needed to run something. Keep it to a few sentences, written for whoever
+hits the same wall next, and say what the evidence was: a file and line, an error
+string, a pull request number.
+
+Where the company config has `notes_autosync`, record it and say so, rather than
+asking first — publishing is guarded, not manual. It is screened for credentials
+and for other clients, a model reviews it against everything already recorded,
+a required check runs in CI, and a note that does not pass is held back with the
+reason rather than shared. `orgami notes --rejected` shows what came back and
+why; rewriting it with the reason addressed is worth doing.
+
+Without `notes_autosync`, ask first — the note then goes out under the user's
+name the next time they sync.
 
 Never put in a note: a credential of any kind, a token, a connection string with
 a password, or the name of another client. orgami refuses those outright, at

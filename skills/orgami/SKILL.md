@@ -74,8 +74,8 @@ Do not record: anything already in the code, anything specific to one session,
 secrets, or credentials.
 
 `orgami sync` exchanges notes with the docs repo — it pushes, so treat it like
-`publish` and only run it when the user asks. `orgami join <company> --repo <url>`
-sets a new machine up from a colleague's docs repo without scanning anything.
+`publish` and only run it when the user asks. `orgami join` sets a new machine up from
+whatever map the organization has already published, without scanning anything.
 
 ## Picking the company
 

@@ -246,15 +246,19 @@ the code. Each note is its own file, named by timestamp and author, so five
 people writing at once never produce a conflict. `orgami sync` runs on its own as
 part of `orgami weekly`.
 
-A colleague does not need to scan anything to get all of it:
+A colleague does not need to scan anything, or know where the map lives:
 
 ```bash
-orgami join winit --repo git@github.com:winitapp/orgami-reports.git
+orgami join
 ```
 
-That pulls the map, the cards, the conventions, the decisions and every note out
-of the docs repo — one command instead of forty clones. Only whoever runs the
-weekly timer needs the checkouts.
+Pick the organization and it finds the repo that already holds a map — probing
+every repo in the org in parallel, a couple of seconds — then pulls the map, the
+cards, the conventions, the decisions and every note out of it. One command
+instead of forty clones. Only whoever runs the weekly timer needs the checkouts.
+
+`orgami join <company> --repo <url> [--path <dir>]` skips the questions, for
+scripts and for a docs repo that lives outside the org.
 
 ## Cost
 

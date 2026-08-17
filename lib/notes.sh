@@ -199,30 +199,45 @@ cmd_sync() {
 }
 
 # Everything a teammate needs, without cloning forty repositories.
-cmd_join() {
-  local company=${1:-} repo="" path="orgami"
-  shift || true
-  while [[ $# -gt 0 ]]; do
-    case $1 in
-      --repo) repo=$2; shift 2 ;;
-      --path) path=$2; shift 2 ;;
-      *) die "unknown flag: $1" ;;
-    esac
-  done
-  [[ -n $company && -n $repo ]] ||
-    die "usage: orgami join <company> --repo <docs-repo-url> [--path <dir>]"
 
+JOIN_PATHS=(orgami docs/orgami engineering/orgami .orgami .)
+
+# Repos in an org that already hold a published map. One line: repo<TAB>path
+join_discover() {
+  local org=$1 repos path
+  repos=$(gh api "orgs/$org/repos?per_page=100" --paginate --jq '.[].name' 2>/dev/null ||
+    gh api "users/$org/repos?per_page=100" --paginate --jq '.[].name' 2>/dev/null) || return 0
+  [[ -n $repos ]] || return 0
+
+  for path in "${JOIN_PATHS[@]}"; do
+    local found
+    found=$(ORG_PROBE=$org PATH_PROBE=$path xargs -P12 -I{} bash -c '
+      target="$PATH_PROBE/graph.json"
+      [[ $PATH_PROBE == "." ]] && target="graph.json"
+      gh api "repos/$ORG_PROBE/{}/contents/$target" --jq .sha >/dev/null 2>&1 &&
+        printf "%s\t%s\n" "{}" "$PATH_PROBE"' <<<"$repos")
+    if [[ -n $found ]]; then
+      echo "$found"
+      return 0
+    fi
+  done
+}
+
+# Pulls a published map into a new company directory.
+join_from_repo() {
+  local company=$1 repo=$2 path=$3
   local dir
   dir=$(company_dir "$company")
   [[ -f $dir/config.json ]] && die "'$company' already exists — orgami list"
   mkdir -p "$dir"/{cache/prs,cache/repos,cache/src,reports,map,notes}
 
   local work="$dir/cache/docs"
+  rm -rf "$work"
   git clone --quiet --depth 1 "$repo" "$work" || die "cannot clone $repo"
   local src="$work/$path"
   [[ -d $src ]] || die "$repo has no $path/ — is that the right docs repo?"
 
-  cp -r "$src"/*.md "$src"/*.json "$dir/map/" 2>/dev/null || true
+  cp -f "$src"/*.md "$src"/*.json "$dir/map/" 2>/dev/null || true
   [[ -d $src/repos ]] && cp -r "$src/repos" "$dir/map/" 2>/dev/null
   [[ -d $src/reports ]] && cp -f "$src/reports/"*.md "$dir/reports/" 2>/dev/null
   [[ -d $src/notes ]] && cp -f "$src/notes/"*.md "$dir/notes/" 2>/dev/null
@@ -243,5 +258,79 @@ cmd_join() {
   mv "$tmp" "$ORGAMI_HOME/config.json"
 
   echo "joined $company ($org) — $(find "$dir/map/repos" -name '*.md' 2>/dev/null | wc -l) repo cards, \
+$(find "$dir/reports" -name '*.md' 2>/dev/null | wc -l) reports, \
 $(find "$dir/notes" -name '*.md' 2>/dev/null | wc -l) notes, no scan needed"
+}
+
+cmd_join() {
+  local company=${1:-} repo="" path="orgami"
+
+  # Flag form, for scripts: orgami join <company> --repo <url> [--path <dir>]
+  if [[ -n $company && $company != -* ]]; then
+    shift
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --repo) repo=$2; shift 2 ;;
+        --path) path=$2; shift 2 ;;
+        *) die "unknown flag: $1" ;;
+      esac
+    done
+    [[ -n $repo ]] || die "usage: orgami join <company> --repo <docs-repo-url> [--path <dir>]"
+    join_from_repo "$company" "$repo" "$path"
+    return
+  fi
+
+  # Bare `orgami join`: pick the org, find the map that is already there.
+  source "$ROOT/lib/ui.sh"
+  ui_need_gum || die "usage: orgami join <company> --repo <docs-repo-url>"
+  need gh
+  gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
+
+  echo
+  ui_title "Join an organization someone has already mapped"
+  ui_dim "Pulls their map, cards, decisions and team notes. No scan, no clones."
+  echo
+
+  local org
+  org=$(ui_pick_org) || return 1
+  [[ -n $org ]] || return 1
+  if [[ $org == "type another…" ]]; then
+    org=$(gum input --placeholder "github organization login" --prompt "org: ") || return 1
+  fi
+  [[ -n $org ]] || return 1
+
+  local found
+  found=$(gum spin --show-output --spinner dot \
+    --title "looking for a published map in $org…" -- \
+    bash -c "source '$ROOT/lib/common.sh'; source '$ROOT/lib/notes.sh'; join_discover '$org'")
+
+  if [[ -z $found ]]; then
+    gum style --foreground 3 "No orgami map published in $org yet."
+    ui_dim "Someone with the repos checked out runs: orgami init"
+    return 1
+  fi
+
+  local choice
+  if [[ $(wc -l <<<"$found") -gt 1 ]]; then
+    choice=$(awk -F'\t' '{printf "%s  (%s/)\n", $1, $2}' <<<"$found" |
+      gum choose --header "Which one?") || return 1
+    choice=${choice%%  (*}
+    path=$(awk -F'\t' -v r="$choice" '$1 == r {print $2}' <<<"$found" | head -1)
+    repo=$choice
+  else
+    repo=$(cut -f1 <<<"$found")
+    path=$(cut -f2 <<<"$found")
+    gum style --foreground 2 "✓ found $org/$repo ($path/)"
+  fi
+
+  local suggested
+  suggested=$(gh api "repos/$org/$repo/contents/$path/graph.json" \
+    --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | jq -r '.company // empty' 2>/dev/null)
+  [[ -n $suggested ]] || suggested=$org
+
+  company=$(gum input --prompt "short name for this org: " --value "$suggested") || return 1
+  company=${company// /-}
+  [[ -n $company ]] || return 1
+
+  join_from_repo "$company" "git@github.com:$org/$repo.git" "$path"
 }

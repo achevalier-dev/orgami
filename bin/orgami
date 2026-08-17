@@ -20,7 +20,8 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
   orgami use <company>                  make it the default
   orgami list                           companies configured here
-  orgami join <company> --repo <url>    pick up a colleague's map, no scan
+  orgami join                           pick an org someone already mapped
+  orgami join <company> --repo <url>    the same, without the questions
 
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded

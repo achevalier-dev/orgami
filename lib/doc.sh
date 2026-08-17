@@ -108,93 +108,100 @@ doc_runbooks() {
   runbook_incidents_page
 }
 
-# The weekly briefs for whoever runs the company, newest first.
-doc_executive() {
-  local dest="$DIR/reports/exec"
-  compgen -G "$dest/*.md" >/dev/null 2>&1 || return 0
-  local out="$DIR/map/EXECUTIVE.md" f
-  {
-    echo "# $COMPANY — what engineering did"
-    echo
-    echo "Written for whoever is paying for the work. Newest week first. Anything"
-    echo "under **Needs you** is waiting on a decision."
-    echo
-    while read -r f; do
-      cat "$f"
-      echo
-    done < <(find "$dest" -name '*.md' | sort -r)
-  } >"$out"
-  echo "$out" >&2
-}
-
-# Instructions for a Claude Project pointed at the published repository. This is
-# how someone with no terminal asks questions about all of this.
+# Instructions for a Claude Project pointed at the published repository, so
+# anyone — on the team or not — can ask questions without a terminal.
 doc_ask_claude() {
   local out="$DIR/map/ASK-CLAUDE.md"
-  cat >"$out" <<'ASKEOF'
-# Ask Claude about __COMPANY__ engineering
+  local project
+  project=$(cfg claude_project)
 
-This repository is written to be read by a person or by Claude. To ask questions
-about it without installing anything:
+  cat >"$out" <<'ASKEOF'
+# Ask Claude about this
+
+Everything in this repository is written to be read by a person or by Claude.
+To ask it questions without installing anything:
 
 1. Go to [claude.ai](https://claude.ai) and create a **Project** — call it
    "__COMPANY__ engineering".
 2. In the project, connect this GitHub repository so Claude can read it.
 3. Paste everything below the line into the project's **custom instructions**.
-4. Ask your questions in that project. It keeps its own history, so you can come
-   back to it week after week.
+4. Ask away. The project keeps its own history, so you can come back to it
+   week after week.
+
+Once it exists, save the project so everyone gets a direct link to it:
+
+```bash
+orgami claude-project https://claude.ai/project/<the-id-in-your-address-bar>
+```
+
+The link then appears at the top of this repository's front page, and anyone
+with access to the project can open it in one click.
 
 ---
 
 You answer questions about the engineering work at __COMPANY__, using only the
-files in this repository. They are regenerated every week from the company's
-GitHub organisation, `__ORG__`.
+files in this repository. They are regenerated every week from the GitHub
+organisation `__ORG__`.
 
 What is in here:
 
-- `EXECUTIVE.md` — the weekly update in plain language, newest week first.
-  **Start here for almost every question.** Anything under "Needs you" is
-  waiting on a decision from the reader.
-- `reports/` — the same weeks written for engineers. More detail, more jargon,
-  every claim linked to the change that made it.
-- `INCIDENTS.md` — what has broken, what it turned out to be, and what raises an
-  alarm when it happens again.
+- `reports/` — a recap of every week, newest last. What shipped and why, what
+  broke, what needs acting on, and how the team worked. Start here for "what
+  happened".
+- `INCIDENTS.md` — what has broken, what it turned out to be, and what raises
+  an alarm when it happens again.
 - `DECISIONS.md` — choices that were made and why, each linked to the change
-  that made it. Use this for "why is it like this".
-- `RUNBOOK.md` and `runbooks/` — how each system is run and deployed.
+  that made it. Start here for "why is it like this".
+- `RUNBOOK.md` and `runbooks/` — how each system is run, shipped and unbroken.
 - `ARCHITECTURE.md` and `repos/` — what each system is and how they connect.
+- `CONVENTIONS.md` — how this team writes code.
 
 How to answer:
 
 - Answer from these files. If the answer is not in them, say so plainly rather
   than reasoning from general knowledge about software. "That is not recorded
   here" is a good answer.
-- The reader is not an engineer. Translate every technical term or leave it out.
-  A repository name like `Attorney-Portal` means nothing to them — say "the
-  attorney portal".
+- Match the reader. If they are not an engineer, translate the technical terms
+  or leave them out — a repository name like `Attorney-Portal` means nothing to
+  them, so say "the attorney portal". If they are an engineer, give them the
+  detail and the links.
 - Never state a number that is not written in the files. Do not estimate cost,
   revenue, hours, or customer counts. There is no basis for those here.
-- Always say which week you are drawing from. These files cover only the weeks
-  that have been generated, so "we have never had that problem" is wrong —
-  "it does not appear in the weeks recorded here" is right.
-- When something is waiting on the reader, say what happens if it keeps waiting.
-- If they ask what they should do, lay out what the files support and what they
-  do not, and leave the decision with them.
-
-Questions this answers well:
-
-- What did the team ship last week, and what does it change for customers?
-- Is anything waiting on me?
-- What broke recently, and has it been fixed?
-- Why did we choose to do it this way?
-- What is engineering time going into?
-- What is the riskiest thing in the system right now?
+- Say which week you are drawing from. These files cover only the weeks that
+  have been generated, so "that has never happened" is wrong — "it does not
+  appear in the weeks recorded here" is right.
+- Every claim in these files carries the pull request or the `file:line` it came
+  from. Quote it, so the reader can check you.
+- A missing connection between two systems means it was not found in committed
+  configuration. It does not mean the two are unconnected.
+- If asked what should be done, lay out what the files support and what they do
+  not, and leave the decision with the reader.
 
 Decline rather than guess on anything about money, headcount, contracts,
 deadlines, or anything happening outside the code.
 ASKEOF
 
   sed -i "s|__COMPANY__|$COMPANY|g; s|__ORG__|$ORG|g" "$out"
+
+  if [[ -n $project ]]; then
+    local tmp
+    tmp=$(mktemp)
+    {
+      echo "# Ask Claude about this"
+      echo
+      echo "### [→ Open the $COMPANY engineering project]($project)"
+      echo
+      echo "Ask it anything about the weeks recorded here. If you have never opened"
+      echo "it before, Claude will ask you to sign in and to grant it access to this"
+      echo "repository once."
+      echo
+      echo "---"
+      echo
+      tail -n +2 "$out"
+    } >"$tmp"
+    mv "$tmp" "$out"
+  fi
+
   echo "$out" >&2
 }
 
@@ -366,7 +373,6 @@ Every edge carries \`file:line\` evidence — verify before acting on it.</sub>"
   doc_cards
   doc_conventions
   doc_runbooks
-  doc_executive
   doc_ask_claude
   doc_decisions
 

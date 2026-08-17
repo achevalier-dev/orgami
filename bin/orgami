@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # orgami — weekly PR recaps and a live map of an organization's repositories.
 # One directory per company under ~/.orgami. No daemon, no database.
 
@@ -27,19 +27,21 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
   orgami use <company>                  make it the default
   orgami list                           companies configured here
+  orgami claude-project [<url>]         the Claude project that reads the docs repo
   orgami join                           pick an org someone already mapped
   orgami join <company> --repo <url>    the same, without the questions
 
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
-  orgami sync                           exchange notes through the docs repo
+  orgami sync [--pr]                    exchange notes through the docs repo
+  orgami stale [days]                   notes old enough to need a second look
+  orgami prune --superseded | --id <id> archive notes that have had their day
 
   orgami pull [--last N] [--since D --until D]
                                         cache merged PRs for a week
   orgami report [--week YYYY-Www] [--model M] [--stats-only]
                                         write the weekly recap
-  orgami latest [--week W] [--exec]     read the newest recap
-                [--raw]                 --exec for the plain-language one
+  orgami latest [--week W] [--raw]      read the newest recap
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
@@ -75,6 +77,10 @@ fi
 if [[ $cmd == init && $# -eq 0 && -t 0 && -t 1 ]]; then cmd=setup; fi
 
 case $cmd in
+  claude-project)
+    source "$ROOT/lib/init.sh"
+    cmd_claude_project "$@"
+    ;;
   init | use | list)
     source "$ROOT/lib/init.sh"
     "cmd_$cmd" "$@"
@@ -113,7 +119,7 @@ case $cmd in
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
     ;;
-  note | notes | sync | join)
+  note | notes | sync | join | prune | stale)
     source "$ROOT/lib/notes.sh"
     "cmd_$cmd" "$@"
     ;;

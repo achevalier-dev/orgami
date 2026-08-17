@@ -177,8 +177,10 @@ agents_refresh() {
   load_company
   [[ -f $DIR/map/repos.json ]] || die "no map yet — run: orgami scan"
 
-  local roots=()
-  mapfile -t roots < <(jq -r '(.workspaces // [])[]' "$DIR/config.json" 2>/dev/null)
+  local roots=() line
+  while read -r line; do
+    [[ -n $line ]] && roots+=("$line")
+  done < <(jq -r '(.workspaces // [])[]' "$DIR/config.json" 2>/dev/null)
   [[ -n $extra ]] && roots+=("$extra")
   [[ ${#roots[@]} -gt 0 ]] || die "no workspace configured — orgami agents --refresh --workspace ~/Work/<client>"
 

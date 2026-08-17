@@ -70,3 +70,26 @@ cmd_list() {
     fi
   done < <(companies)
 }
+
+# orgami claude-project — remember the Claude Project that reads the docs repo,
+# so the published front page can link straight to it.
+cmd_claude_project() {
+  load_company
+  local url=${1:-}
+
+  if [[ -z $url ]]; then
+    url=$(cfg claude_project)
+    [[ -n $url ]] || die "no Claude project saved — orgami claude-project <url>"
+    echo "$url"
+    return 0
+  fi
+
+  [[ $url =~ ^https://claude\.ai/project/[A-Za-z0-9-]+ ]] ||
+    die "that is not a Claude project link — open the project and copy the address bar"
+
+  local tmp
+  tmp=$(mktemp)
+  jq --arg u "$url" '.claude_project = $u' "$DIR/config.json" >"$tmp"
+  mv "$tmp" "$DIR/config.json"
+  echo "saved for $COMPANY — it will appear on the front page at the next publish"
+}

@@ -15,6 +15,64 @@ notes_author() {
   echo "$a"
 }
 
+# A note is published to a shared repository under the user's name. These are
+# the things that must never ride along: credentials, and another client.
+notes_screen() {
+  local text=$1 company=$2 problems=() warnings=()
+
+  local secret_patterns=(
+    '-----BEGIN [A-Z ]*PRIVATE KEY'
+    'AKIA[0-9A-Z]{16}'
+    'ASIA[0-9A-Z]{16}'
+    'gh[pousr]_[A-Za-z0-9]{20,}'
+    'github_pat_[A-Za-z0-9_]{20,}'
+    'xox[baprs]-[A-Za-z0-9-]{10,}'
+    '(sk|rk)_live_[A-Za-z0-9]{10,}'
+    'AIza[0-9A-Za-z_-]{30,}'
+    'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+    '://[^/@[:space:]:]+:[^/@[:space:]]{4,}@'
+    '(password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)[[:space:]]*[=:][[:space:]]*[^[:space:]<>"]{8,}'
+  )
+  local pat
+  for pat in "${secret_patterns[@]}"; do
+    if grep -qiE -- "$pat" <<<"$text"; then
+      problems+=("looks like a credential: $(grep -oiE -- "$pat" <<<"$text" | head -1 | cut -c1-28)…")
+    fi
+  done
+
+  # Another client's organization must not surface in this one's notes.
+  local other org
+  while read -r other; do
+    [[ -n $other && $other != "$company" ]] || continue
+    org=$(jq -r '.org // empty' "$(company_dir "$other")/config.json" 2>/dev/null)
+    for pat in "$other" "$org"; do
+      [[ -n $pat && ${#pat} -ge 3 ]] || continue
+      grep -qiE -- "(^|[^A-Za-z0-9-])$pat([^A-Za-z0-9-]|$)" <<<"$text" &&
+        problems+=("mentions another client you have configured here: $pat")
+    done
+  done < <(companies)
+
+  grep -qE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}' <<<"$text" &&
+    warnings+=("contains an email address")
+  grep -qE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' <<<"$text" &&
+    warnings+=("contains an IP address")
+
+  local w
+  for w in "${warnings[@]}"; do
+    [[ -n $w ]] && log "note $w"
+  done
+
+  [[ ${#problems[@]} -eq 0 ]] && return 0
+  {
+    echo "refusing to write this note:"
+    printf '  - %s\n' "${problems[@]}"
+    echo
+    echo "Notes go to a repository the whole team reads. Rewrite it without that,"
+    echo "or point at where the value lives instead of quoting it."
+  } >&2
+  return 1
+}
+
 notes_slug() {
   tr '[:upper:]' '[:lower:]' <<<"$1" |
     sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40
@@ -34,12 +92,13 @@ cmd_note() {
   source "$ROOT/lib/card.sh"
   mkdir -p "$DIR/notes"
 
-  local repo="" tags=() text="" push=0
+  local repo="" tags=() text="" push=0 supersedes=""
   while [[ $# -gt 0 ]]; do
     case $1 in
       --repo | -r) repo=$2; shift 2 ;;
       --tag | -t) tags+=("$2"); shift 2 ;;
       --push) push=1; shift ;;
+      --supersede) supersedes=$2; shift 2 ;;
       --) shift; text="$*"; break ;;
       -*) die "unknown flag: $1" ;;
       *) text="$*"; break ;;
@@ -59,6 +118,23 @@ cmd_note() {
     fi
   fi
   [[ -n ${text// /} ]] || die "nothing to record"
+
+  # Standing in one client's checkout while the default company is another is
+  # exactly how a note ends up in the wrong repository.
+  local here_url here_org
+  here_url=$(git -C "$PWD" remote get-url origin 2>/dev/null || true)
+  if [[ -n $here_url ]]; then
+    here_org=$(sed -E 's|.*[:/]([^/]+)/[^/]+$|\1|' <<<"$here_url")
+    local here_lc org_lc
+    here_lc=$(printf '%s' "$here_org" | tr '[:upper:]' '[:lower:]')
+    org_lc=$(printf '%s' "$ORG" | tr '[:upper:]' '[:lower:]')
+    if [[ -n $here_org && $here_lc != "$org_lc" ]]; then
+      die "this checkout belongs to '$here_org' but the note would go to '$COMPANY' ($ORG).
+     Switch with ORGAMI_COMPANY=<name>, or pass --repo if you meant it."
+    fi
+  fi
+
+  notes_screen "$text" "$COMPANY" || return 1
 
   [[ -n $repo ]] || repo=$(notes_repo_here)
 
@@ -84,6 +160,7 @@ cmd_note() {
     echo "author: $author"
     echo "date: $stamp"
     [[ -n $repo ]] && echo "repo: $repo"
+    [[ -n $supersedes ]] && echo "supersedes: $supersedes"
     [[ ${#tags[@]} -gt 0 ]] && printf 'tags: [%s]\n' "$(
       IFS=,
       echo "${tags[*]}"
@@ -116,10 +193,22 @@ notes_index() {
       { body = body $0 "\n" }
       END {
         gsub(/\\/, "\\\\", body); gsub(/"/, "\\\"", body); gsub(/\n/, "\\n", body)
-        printf "{\"id\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"repo\":\"%s\",\"tags\":\"%s\",\"file\":\"%s\",\"body\":\"%s\"}\n",
-          meta["id"], meta["author"], meta["date"], meta["repo"], meta["tags"], file, body
+        printf "{\"id\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"repo\":\"%s\",\"tags\":\"%s\",\"supersedes\":\"%s\",\"file\":\"%s\",\"body\":\"%s\"}\n",
+          meta["id"], meta["author"], meta["date"], meta["repo"], meta["tags"], meta["supersedes"], file, body
       }' "$f"
-  done | jq -s 'sort_by(.date) | reverse'
+  done | jq -s '
+    (map(.supersedes) | map(select(. != "")) | unique) as $dead
+    | map(select(.id as $i | ($dead | index($i)) | not))
+    | sort_by(.date) | reverse'
+}
+
+# Every note, including the ones a newer note replaced.
+notes_index_all() {
+  local f
+  for f in "$DIR"/notes/*.md; do
+    [[ -f $f ]] || continue
+    printf '%s\n' "$f"
+  done
 }
 
 # Markdown for the notes attached to one repo. Used by the repo card.
@@ -160,10 +249,86 @@ cmd_notes() {
       end'
 }
 
+# Notes nobody has touched in a long time: candidates for review or removal.
+cmd_stale() {
+  load_company
+  local days=${1:-120} cutoff
+  cutoff=$(date_shift "$(date -u +%Y-%m-%d)" "-$days")
+  [[ -d $DIR/notes ]] || die "no notes yet"
+
+  notes_index | jq -r --arg cutoff "$cutoff" --arg days "$days" '
+    [.[] | select(.date[0:10] < $cutoff)]
+    | if length == 0 then "Nothing older than \($days) days." else
+      ["\(length) note(s) older than \($days) days — still true?", ""]
+      + (.[] | ["  \(.date[0:10])  \(.author)\(if .repo != "" then "  [" + .repo + "]" else "" end)",
+                "    \(.body | gsub("^\\n+"; "") | gsub("\\n+$"; "") | gsub("\\n"; " ") | .[0:120])",
+                "    replace: orgami note --supersede \(.id) \"...\"",
+                "    remove:  orgami prune --id \(.id)", ""])
+      | .[] end'
+}
+
+# Superseded notes, and anything named explicitly, move out of the way. They
+# stay on disk under notes/archive so nothing is destroyed, and the next sync
+# takes them out of the shared repository.
+cmd_prune() {
+  load_company
+  local id="" superseded=0
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --id) id=$2; shift 2 ;;
+      --superseded) superseded=1; shift ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+  [[ -n $id || $superseded == 1 ]] ||
+    die "usage: orgami prune --id <note-id> | orgami prune --superseded"
+
+  mkdir -p "$DIR/notes/archive"
+  local moved=0 f base
+
+  if [[ $superseded == 1 ]]; then
+    local dead
+    dead=$(grep -h '^supersedes:' "$DIR"/notes/*.md 2>/dev/null | sed 's/^supersedes:[[:space:]]*//' | sort -u)
+    while read -r d; do
+      [[ -n $d ]] || continue
+      for f in "$DIR"/notes/"$d".md; do
+        [[ -f $f ]] || continue
+        mv "$f" "$DIR/notes/archive/"
+        moved=$((moved + 1))
+        echo "archived $d"
+      done
+    done <<<"$dead"
+  fi
+
+  if [[ -n $id ]]; then
+    f="$DIR/notes/$id.md"
+    [[ -f $f ]] || die "no note with id '$id' — orgami notes"
+    mv "$f" "$DIR/notes/archive/"
+    moved=$((moved + 1))
+    echo "archived $id"
+  fi
+
+  echo "$moved archived to $DIR/notes/archive"
+  [[ -n $(cfg docs_repo) ]] && log "run 'orgami sync' to take them out of the shared repo"
+  return 0
+}
+
 # Two-way: take what the team wrote, hand over what you wrote.
 cmd_sync() {
   load_company
   need git
+
+  local review=-1
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --pr | --review) review=1; shift ;;
+      --no-pr | --direct) review=0; shift ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+  if [[ $review == -1 ]]; then
+    [[ $(cfg notes_review false) == true ]] && review=1 || review=0
+  fi
 
   local repo path
   repo=$(cfg docs_repo)
@@ -181,6 +346,19 @@ cmd_sync() {
 
   local remote="$work/$path/notes"
   mkdir -p "$remote" "$DIR/notes"
+
+  # Anything archived locally comes out of the shared repository too.
+  local removed=0
+  if [[ -d $DIR/notes/archive ]]; then
+    for f in "$DIR"/notes/archive/*.md; do
+      [[ -f $f ]] || continue
+      base=$(basename "$f")
+      if [[ -f $remote/$base ]]; then
+        rm -f "$remote/$base"
+        removed=$((removed + 1))
+      fi
+    done
+  fi
 
   local pulled=0 pushed=0 f base
   for f in "$remote"/*.md; do
@@ -200,12 +378,32 @@ cmd_sync() {
   done
 
   if [[ -n $(git -C "$work" status --porcelain) ]]; then
+    local msg="notes($COMPANY): $pushed from $(notes_author)"
+    [[ $removed -gt 0 ]] && msg="$msg, $removed removed"
     git -C "$work" add -A "$path/notes"
-    git -C "$work" commit --quiet -m "notes($COMPANY): $pushed from $(notes_author)"
-    git -C "$work" push --quiet origin HEAD || die "could not push — pull and retry"
+
+    if [[ $review == 1 ]]; then
+      need gh
+      local branch="orgami-notes/$(notes_author)-$(date -u +%Y%m%d-%H%M%S)"
+      git -C "$work" checkout --quiet -b "$branch"
+      git -C "$work" commit --quiet -m "$msg"
+      git -C "$work" push --quiet -u origin "$branch" || die "could not push $branch"
+      ( cd "$work" && gh pr create --fill --title "$msg" \
+          --body "Notes written with \`orgami note\`. Merging publishes them to everyone on $COMPANY.
+
+Review for: anything that should not be shared, anything already stale, anything better fixed in the code than written down." ) ||
+        log "branch pushed, but the pull request was not created — open it by hand"
+      git -C "$work" checkout --quiet -
+    else
+      git -C "$work" commit --quiet -m "$msg"
+      git -C "$work" push --quiet origin HEAD || die "could not push — pull and retry"
+    fi
   fi
 
-  echo "$pulled in, $pushed out · $(find "$DIR/notes" -name '*.md' | wc -l) notes total"
+  local mode="direct"
+  [[ $review == 1 ]] && mode="pull request"
+  echo "$pulled in, $pushed out$([[ $removed -gt 0 ]] && echo ", $removed removed") · $mode · \
+$(find "$DIR/notes" -maxdepth 1 -name '*.md' | wc -l) notes live"
 }
 
 # Everything a teammate needs, without cloning forty repositories.

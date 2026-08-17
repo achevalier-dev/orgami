@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly orgami run for %i
+
+[Timer]
+OnCalendar=Fri 17:00
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

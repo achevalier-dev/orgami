@@ -1,0 +1,85 @@
+#!/bin/bash
+# orgami — weekly PR recaps and a live map of an organization's repositories.
+# One directory per company under ~/.orgami. No daemon, no database.
+
+set -euo pipefail
+
+ORGAMI_BIN=$(readlink -f "${BASH_SOURCE[0]}")
+ROOT=$(cd -- "$(dirname -- "$ORGAMI_BIN")/.." && pwd)
+
+source "$ROOT/lib/common.sh"
+
+need jq
+
+usage() {
+  cat <<'EOF'
+orgami — weekly PR recaps and a map of an organization's repositories
+
+  orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
+  orgami use <company>                  make it the default
+  orgami list                           companies configured here
+
+  orgami pull [--last N] [--since D --until D]
+                                        cache merged PRs for a week
+  orgami report [--week YYYY-Www] [--model M] [--stats-only]
+                                        write the weekly recap
+  orgami scan [--only <repo>] [--depth N]
+                                        rebuild the map from every repo
+  orgami doc [--narrate]                render ARCHITECTURE.md from the map
+  orgami view                           browse the map in the terminal
+  orgami query <repo|host|tool|service> print one node and its edges
+  orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
+  orgami weekly                         pull, report, scan, doc, publish
+
+Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.
+EOF
+}
+
+cmd=${1:-help}
+[[ $# -gt 0 ]] && shift
+
+case $cmd in
+  init | use | list)
+    source "$ROOT/lib/init.sh"
+    "cmd_$cmd" "$@"
+    ;;
+  pull)
+    source "$ROOT/lib/pull.sh"
+    cmd_pull "$@"
+    ;;
+  report)
+    source "$ROOT/lib/report.sh"
+    cmd_report "$@"
+    ;;
+  scan)
+    source "$ROOT/lib/scan.sh"
+    cmd_scan "$@"
+    ;;
+  doc)
+    source "$ROOT/lib/doc.sh"
+    cmd_doc "$@"
+    ;;
+  view | query | show | open)
+    source "$ROOT/lib/view.sh"
+    "cmd_$cmd" "$@"
+    ;;
+  publish)
+    source "$ROOT/lib/publish.sh"
+    cmd_publish "$@"
+    ;;
+  weekly)
+    source "$ROOT/lib/pull.sh"
+    source "$ROOT/lib/report.sh"
+    source "$ROOT/lib/scan.sh"
+    source "$ROOT/lib/doc.sh"
+    source "$ROOT/lib/publish.sh"
+    cmd_weekly "$@"
+    ;;
+  help | -h | --help)
+    usage
+    ;;
+  *)
+    usage >&2
+    die "unknown command: $cmd"
+    ;;
+esac

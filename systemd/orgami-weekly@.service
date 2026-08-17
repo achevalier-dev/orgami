@@ -1,0 +1,10 @@
+[Unit]
+Description=orgami weekly recap and map refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=ORGAMI_COMPANY=%i
+ExecStart=%h/.local/bin/orgami weekly
+TimeoutStartSec=45min

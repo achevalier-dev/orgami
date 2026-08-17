@@ -1,0 +1,29 @@
+query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 50, after: $after) {
+    issueCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number
+        title
+        url
+        bodyText
+        additions
+        deletions
+        changedFiles
+        createdAt
+        mergedAt
+        author { login }
+        repository { name }
+        labels(first: 10) { nodes { name } }
+        reviews(first: 20) { nodes { state submittedAt author { login } } }
+        reviewThreads(first: 20) {
+          nodes {
+            isResolved
+            comments(first: 1) { nodes { path bodyText author { login } } }
+          }
+        }
+      }
+    }
+  }
+}

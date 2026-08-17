@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.achevalier-dev.orgami",
+  "name": "orgami",
+  "version": "1.0.0",
+  "author": "achevalier-dev",
+  "license": "MIT",
+  "description": "Weekly pull request recaps and a mapped graph of an organization's repositories, deployment tooling and servers, readable in the terminal and loaded as Claude Code context.",
+  "kinds": ["cli", "skill"],
+  "entryPoints": {
+    "cli": "bin/orgami",
+    "skill": "skills/orgami/SKILL.md"
+  }
+}

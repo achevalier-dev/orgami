@@ -184,8 +184,13 @@ profile_workflows() {
       actions=$(grep -ohE 'uses:\s*[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+' "$f" |
         sed -E 's/uses:\s*//' | sort -u | head -6 | paste -sd, - || true)
 
+      # A workflow deploys if it says so in its name, or if it uses an action
+      # that only exists to deploy. Merely touching aws-actions is not enough —
+      # every test job configures credentials too.
       deploys=false
-      if grep -qiE 'deploy|release|publish|ship|heroku|flyctl|vercel|kamal|ecs|eks|s3 sync|aws-actions' "$f"; then
+      if grep -qiE '(^|[-_/])(deploy|release|publish|ship)' <<<"$(basename "$f") $name"; then
+        deploys=true
+      elif grep -qE 'uses:\s*(akhileshns/heroku-deploy|superfly/flyctl-actions|amondnet/vercel-action|vercel/action|aws-actions/amazon-ecs-deploy-task-definition|JamesIves/github-pages-deploy-action|peaceiris/actions-gh-pages|appleboy/ssh-action|serverless/github-action)' "$f"; then
         deploys=true
       fi
 

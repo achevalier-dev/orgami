@@ -9,7 +9,7 @@ BIN_DIR="$HOME/.local/bin"
 SKILL_DIR="$HOME/.claude/skills/orgami"
 UNIT_DIR="$HOME/.config/systemd/user"
 
-for tool in jq gh git fzf gum; do
+for tool in jq gh git fzf gum python3; do
   command -v "$tool" >/dev/null || echo "warning: $tool is not on PATH" >&2
 done
 command -v claude >/dev/null ||

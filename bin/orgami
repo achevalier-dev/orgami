@@ -35,10 +35,14 @@ orgami — weekly PR recaps and a map of an organization's repositories
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
   orgami coupling                       which repos keep changing together
+  orgami runbook [<repo>]               how to run, ship and unbreak it
   orgami view                           browse the map in the terminal
   orgami query <repo|host|tool|service> print one node and its edges
   orgami card <repo>                    the repo's page: stack, commands, links
   orgami context [repo]                 everything an agent needs before editing
+  orgami mcp                            serve the map over MCP, for any client
+  orgami mcp --config <client>          the config snippet for cursor, opencode, …
+  orgami agents [--cursor] [--all]      write the context into AGENTS.md / rules
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
 
@@ -95,6 +99,23 @@ case $cmd in
   note | notes | sync | join)
     source "$ROOT/lib/notes.sh"
     "cmd_$cmd" "$@"
+    ;;
+  mcp)
+    if [[ ${1:-} == --config ]]; then
+      source "$ROOT/lib/agents.sh"
+      cmd_mcp_config "${2:-}"
+      exit $?
+    fi
+    need python3
+    exec python3 "$ROOT/lib/mcp.py" "$@"
+    ;;
+  agents)
+    source "$ROOT/lib/agents.sh"
+    cmd_agents "$@"
+    ;;
+  runbook)
+    source "$ROOT/lib/runbook.sh"
+    cmd_runbook "$@"
     ;;
   card | context | brief)
     source "$ROOT/lib/card.sh"

@@ -94,6 +94,19 @@ doc_decisions() {
   echo "$out" >&2
 }
 
+doc_runbooks() {
+  [[ -f $DIR/map/repos.json ]] || return 0
+  source "$ROOT/lib/runbook.sh"
+  source "$ROOT/lib/notes.sh" 2>/dev/null || true
+  mkdir -p "$DIR/map/runbooks"
+  local n
+  while read -r n; do
+    [[ -n $n ]] || continue
+    runbook_render "$n" >"$DIR/map/runbooks/$n.md" 2>/dev/null || true
+  done < <(jq -r '.[].name' "$DIR/map/repos.json")
+  runbook_org
+}
+
 cmd_doc() {
   load_company
   local narrate=0 model=""
@@ -261,6 +274,7 @@ Every edge carries \`file:line\` evidence — verify before acting on it.</sub>"
 
   doc_cards
   doc_conventions
+  doc_runbooks
   doc_decisions
 
   echo "$out"

@@ -243,6 +243,8 @@ lib/view.sh            fzf TUI, query, open
 lib/profile.sh         what a repo is: framework, commands, env, routes
 lib/card.sh            repo pages and `orgami context`
 lib/coupling.sh        which repos change together
+lib/mcp.py             the MCP server, standard library only
+lib/agents.sh          AGENTS.md and Cursor rules, MCP config snippets
 lib/ui.sh              the menu and the setup wizard
 lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
@@ -275,6 +277,39 @@ Company state, never in this repo:
   map/repos/<repo>.md  a page per repo
   map/decisions/       one fragment per week, assembled into DECISIONS.md
 ```
+
+## Other agents
+
+Nothing here is Claude-only. The map is markdown and JSON on disk, and the CLI
+is the interface — only the plugin, the skill and the session hook are specific
+to Claude Code.
+
+**Anything that speaks MCP** — Cursor, opencode, Windsurf, Zed, Codex, VS Code,
+Claude Desktop — gets the map as tools: `orgami_context`, `orgami_search`,
+`orgami_notes`, `orgami_note`, `orgami_query`, `orgami_decisions`,
+`orgami_conventions`.
+
+```bash
+orgami mcp --config cursor      # or opencode, codex, claude-code, windsurf, zed, vscode
+```
+
+That prints the snippet for the client, and `orgami mcp` is the server itself —
+stdio JSON-RPC, Python standard library only, shelling out to the same CLI so
+there is no second implementation to drift. The `orgami_note` tool is described
+to the model as requiring the user's agreement first, the same rule the Claude
+skill carries.
+
+**Anything that reads `AGENTS.md`** — opencode, Codex, Zed, Jules, Cursor — can
+have the context written straight into the repository:
+
+```bash
+orgami agents            # AGENTS.md, plus .cursor/rules if the repo has .cursor/
+orgami agents --all      # both, explicitly
+```
+
+It writes a marked block and rewrites only that block on later runs, so anything
+you wrote by hand around it survives. These files live in the repo, so commit
+them only if the team wants them there; re-run after a scan to refresh.
 
 ## Five people, one memory
 

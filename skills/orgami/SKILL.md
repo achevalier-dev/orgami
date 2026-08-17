@@ -80,6 +80,14 @@ secrets, or credentials.
 `publish` and only run it when the user asks. `orgami join` sets a new machine up from
 whatever map the organization has already published, without scanning anything.
 
+## Other tools on the same map
+
+The map is not Claude-only. `orgami mcp` serves it over MCP for Cursor,
+opencode, Windsurf, Zed, Codex and VS Code, and `orgami agents` writes the same
+context into a repo's `AGENTS.md` or `.cursor/rules/`. If the user asks how a
+teammate on a different editor gets this, `orgami mcp --config <client>` prints
+the snippet for that client.
+
 ## Picking the company
 
 `orgami context` matches the checkout to a company by its git remote on its own.

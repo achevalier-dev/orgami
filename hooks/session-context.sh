@@ -20,10 +20,17 @@ if [[ -z $ORGAMI ]]; then
   exit 0
 fi
 
-brief=$("$ORGAMI" brief 2>/dev/null) || exit 0
-[[ -n $brief ]] || exit 0
+# Cursor's sessionStart hook wants JSON on stdout with an additional_context key.
+# Claude Code's takes the text as-is.
+JSON=0
+[[ ${1:-} == --json ]] && JSON=1
 
-cat <<CTX
+cd "${CURSOR_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}" 2>/dev/null || true
+
+brief=$("$ORGAMI" brief 2>/dev/null) || exit 0
+[[ -n $brief ]] || { [[ $JSON == 1 ]] && echo '{}'; exit 0; }
+
+context=$(cat <<CTX
 $brief
 
 Use this instead of re-deriving it. \`orgami context\` for the full page.
@@ -32,3 +39,10 @@ cause of a bug, why an obvious fix does not work here, a missing setup step —
 offer to record it with \`orgami note "..."\`, and ask before writing, because
 notes are shared with the whole team under the user's name.
 CTX
+)
+
+if [[ $JSON == 1 ]]; then
+  jq -n --arg c "$context" '{additional_context: $c}'
+else
+  printf '%s\n' "$context"
+fi

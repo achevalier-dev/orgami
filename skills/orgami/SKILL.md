@@ -108,8 +108,11 @@ whatever map the organization has already published, without scanning anything.
 ## Other tools on the same map
 
 The map is not Claude-only. `orgami mcp` serves it over MCP for Cursor,
-opencode, Windsurf, Zed, Codex and VS Code, and `orgami agents` writes the same
-context into a repo's `AGENTS.md` or `.cursor/rules/`. If the user asks how a
+opencode, Windsurf, Zed, Codex and VS Code; `orgami agents --cursor-hook` gives
+Cursor the same automatic session injection this plugin does; and `orgami agents`
+writes the same context into a repo's `AGENTS.md` or `.cursor/rules/` for tools
+that only read files. Those written blocks are snapshots — `orgami agents
+--refresh` and `orgami agents --git-hook` keep them from drifting. If the user asks how a
 teammate on a different editor gets this, `orgami mcp --config <client>` prints
 the snippet for that client.
 

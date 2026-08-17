@@ -43,6 +43,9 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami mcp                            serve the map over MCP, for any client
   orgami mcp --config <client>          the config snippet for cursor, opencode, …
   orgami agents [--cursor] [--all]      write the context into AGENTS.md / rules
+  orgami agents --refresh [--workspace P]  rewrite every block under a workspace
+  orgami agents --cursor-hook [--user]  Cursor injects it at every session start
+  orgami agents --git-hook              refresh the block on merge and checkout
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
 

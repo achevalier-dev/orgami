@@ -307,6 +307,25 @@ there is no second implementation to drift. The `orgami_note` tool is described
 to the model as requiring the user's agreement first, the same rule the Claude
 skill carries.
 
+**Cursor** reaches parity with Claude Code, because its `sessionStart` hook can
+return `additional_context`:
+
+```bash
+orgami agents --cursor-hook          # this project
+orgami agents --cursor-hook --user   # every project you open
+```
+
+Cursor then injects the repo's stack, commands, linked repos and team notes at
+the start of every session — regenerated each time, not a snapshot — and stays
+silent outside a mapped checkout. Same script as the Claude Code hook, with
+`--json` for Cursor's output format.
+
+**opencode** cannot do this. Its plugin API has session *events* but no
+documented way to add text to the model's context — only
+`experimental.session.compacting`, which fires on compaction. So opencode reads
+the generated file instead, and the answer there is to keep that file current
+(below).
+
 **Anything that reads `AGENTS.md`** — opencode, Codex, Zed, Jules, Cursor — can
 have the context written straight into the repository:
 
@@ -317,7 +336,20 @@ orgami agents --all      # both, explicitly
 
 It writes a marked block and rewrites only that block on later runs, so anything
 you wrote by hand around it survives. These files live in the repo, so commit
-them only if the team wants them there; re-run after a scan to refresh.
+them only if the team wants them there.
+
+A written block is a snapshot, so it drifts as soon as the map moves. Three ways
+to keep it current, and they compose:
+
+```bash
+orgami agents --refresh --workspace ~/Work/acme   # every mapped checkout under a root
+orgami agents --git-hook                          # refresh on merge, checkout, rebase
+```
+
+The workspace is remembered, so later runs are just `orgami agents --refresh`,
+and `orgami weekly` runs it automatically once one is configured. The refresh
+only rewrites blocks that already exist — it never creates a context file in a
+repo that did not ask for one.
 
 ## Five people, one memory
 

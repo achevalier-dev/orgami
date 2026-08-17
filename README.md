@@ -32,8 +32,10 @@ orgami init   # add a company, step by step
 `orgami init` picks the organization from the ones your `gh` token can see, then
 asks where the weekly report should be committed — an existing repo in that org,
 a new one it creates for you (`orgami-reports` by default, private or public),
-a git URL you type, or nowhere at all. It ends by offering the first recap, the
-first scan and the weekly timer, one confirm each. Bare
+a git URL you type, or nowhere at all. It then builds the thing: this week's
+recap, a scan of every repo, the architecture doc, and a first publish if you
+gave it a docs repo. Ctrl-C stops the build and keeps the config. The last
+question is whether to run it weekly. Bare
 `orgami` opens a menu over whichever company is current — browse the map, read
 the last recap, write this week's, rebuild, publish, switch org.
 

@@ -172,19 +172,39 @@ cmd_setup() {
 
   export ORGAMI_COMPANY="$company"
 
-  if gum confirm "Write this week's recap now? (about two minutes)"; then
-    gum spin --spinner dot --title "fetching merged pull requests…" -- \
-      "$ORGAMI_BIN" pull
-    gum spin --spinner dot --title "writing the recap with $model…" -- \
-      "$ORGAMI_BIN" report
-    gum style --foreground 2 "✓ $dir/reports/$(iso_week).md"
+  # The first build runs on its own — an org that is configured but empty is of
+  # no use to anyone. Ctrl-C leaves the config in place and stops cleanly.
+  trap 'echo; ui_dim "stopped — $company is saved, finish it later with: orgami"; exit 0' INT
+
+  local week
+  week=$(iso_week)
+
+  if gum spin --spinner dot --title "fetching merged pull requests…" -- "$ORGAMI_BIN" pull; then
+    if gum spin --spinner dot --title "writing the $week recap with $model…" -- "$ORGAMI_BIN" report; then
+      gum style --foreground 2 "✓ reports/$week.md"
+    else
+      gum style --foreground 3 "no recap — nothing merged in $org this week"
+    fi
+  else
+    gum style --foreground 3 "could not read pull requests from $org"
   fi
 
-  if gum confirm "Scan every repo and build the map now? (minutes on a large org)"; then
-    "$ORGAMI_BIN" scan
-    "$ORGAMI_BIN" doc >/dev/null
-    gum style --foreground 2 "✓ $dir/map/ARCHITECTURE.md"
+  ui_dim "scanning every repo in $org — the slow part, once per refresh"
+  if "$ORGAMI_BIN" scan; then
+    "$ORGAMI_BIN" doc >/dev/null && gum style --foreground 2 "✓ map/ARCHITECTURE.md"
+  else
+    gum style --foreground 3 "scan failed — try again with: orgami scan"
   fi
+
+  if [[ -n $docs_repo ]]; then
+    if gum spin --spinner dot --title "publishing to $docs_repo…" -- "$ORGAMI_BIN" publish --yes; then
+      gum style --foreground 2 "✓ pushed to $docs_repo"
+    else
+      gum style --foreground 3 "could not publish — try again with: orgami publish"
+    fi
+  fi
+
+  trap - INT
 
   if [[ -f $HOME/.config/systemd/user/orgami-weekly@.service ]] &&
     gum confirm "Run all of that every Friday?"; then

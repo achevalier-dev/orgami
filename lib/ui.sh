@@ -30,6 +30,17 @@ ui_pick_org() {
   logins=$(gum spin --show-output --spinner dot --title "reading your GitHub organizations…" -- \
     bash -c 'gh api user/orgs --jq ".[].login" 2>/dev/null; gh api user --jq .login' |
     grep -v '^$' | sort -u)
+
+  # ORGAMI_ORGS, or an "orgs" list in the root config, narrows the picker to the
+  # ones worth seeing. "type another…" still reaches everything else.
+  local only=${ORGAMI_ORGS:-}
+  if [[ -z $only && -f $ORGAMI_HOME/config.json ]]; then
+    only=$(jq -r '(.orgs // []) | join(" ")' "$ORGAMI_HOME/config.json")
+  fi
+  if [[ -n $only ]]; then
+    logins=$(grep -Fxi -f <(printf '%s\n' ${only//,/ }) <<<"$logins" || true)
+  fi
+
   local n
   n=$(wc -l <<<"$logins")
   if [[ $n -gt 8 ]]; then

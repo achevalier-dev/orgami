@@ -37,6 +37,20 @@ first scan and the weekly timer, one confirm each. Bare
 `orgami` opens a menu over whichever company is current — browse the map, read
 the last recap, write this week's, rebuild, publish, switch org.
 
+If the token sees more organizations than you care about, narrow the picker:
+
+```bash
+ORGAMI_ORGS="acme-inc beta-corp" orgami init
+```
+
+or keep it permanently in `~/.orgami/config.json`:
+
+```json
+{ "orgs": ["acme-inc", "beta-corp"] }
+```
+
+"type another…" still reaches every other org.
+
 Both need [gum](https://github.com/charmbracelet/gum). Everything below works
 without it, and is what the timer and any script should use:
 
@@ -160,6 +174,8 @@ systemd/               orgami-weekly@.service and .timer
 Company state, never in this repo:
 
 ```
+~/.orgami/
+  config.json          default company, and an optional "orgs" picker filter
 ~/.orgami/<company>/
   config.json          org, docs repo, include/exclude, model
   cache/prs/           raw GraphQL responses, one file per week

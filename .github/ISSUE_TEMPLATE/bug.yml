@@ -1,0 +1,72 @@
+name: Bug report
+description: A command fails, hangs, or does something other than what it says
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste client repository names, hostnames, IP addresses or
+        tokens. Replace them — `acme-inc`, `repo-one`, `host.example.com` — the
+        bug is almost never in the name.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran, and what it did instead of what you expected.
+      placeholder: |
+        `orgami scan` exits after the first repo instead of continuing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: >
+        The error, redacted. `bash -x ./bin/orgami <command>` if you can get it —
+        the last twenty lines are usually enough.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: orgami version
+      description: Output of `orgami version`.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - macOS
+        - WSL
+        - Windows (Git Bash)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: tools
+    attributes:
+      label: Tool versions
+      description: "Output of: `bash --version | head -1; jq --version; gh --version | head -1`"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent, if the problem is in the context an agent read
+      options:
+        - Not agent-related
+        - Claude Code
+        - Cursor
+        - opencode
+        - Another MCP client
+        - AGENTS.md written into a repo

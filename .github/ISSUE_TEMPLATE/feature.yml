@@ -1,0 +1,36 @@
+name: Idea or feature request
+description: Something orgami should do, or should stop doing
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two constraints worth knowing before you write: orgami takes no new
+        dependencies beyond `gh`, `jq`, `git`, `fzf`, `gum` and `python3`, and
+        nothing enters the map without the `file:line` it came from. An idea that
+        fits inside those is much more likely to land.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The situation you are in
+      description: What you were trying to find out, or do, when orgami came up short.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you think should happen
+      description: A command, a flag, a section in a generated file — as concrete as you can make it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Where the answer would come from
+      description: >
+        If this adds anything to the map or the runbooks, what committed file
+        would it be read out of? Anything that cannot cite a file is a guess, and
+        orgami does not ship guesses.

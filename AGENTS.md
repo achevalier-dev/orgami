@@ -25,11 +25,16 @@ area, plus a case arm in `bin/orgami`. Nothing else.
 ## Run & test
 
 ```bash
-bash -n bin/orgami lib/*.sh          # syntax, after every edit
+./script/check                       # bash -n, shellcheck, stats on a fixture week
 ORGAMI_HOME=/tmp/scratch/orgami-test ./bin/orgami scan --jobs 4
 ```
 
-There is no test suite. Test against a real organization with `ORGAMI_HOME`
+`script/check` is everything CI runs, and needs no organization, token or model:
+`bash -n` over every script, `shellcheck --severity=warning`, and `lib/stats.jq`
+against `test/fixtures/week.json`. Run it after every edit. A change to
+`stats.jq` adds a case to the fixture and an assertion to `script/check`.
+
+Beyond that there is no test suite. Test against a real organization with `ORGAMI_HOME`
 pointed somewhere disposable, and against stubs when the path is interactive or
 destructive: put a fake `gum` and `gh` earlier on `PATH`, pop scripted answers
 off a queue file, then assert on the JSON that got written. That is how the

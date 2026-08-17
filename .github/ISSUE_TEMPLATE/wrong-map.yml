@@ -1,0 +1,69 @@
+name: The map got my organization wrong
+description: A missing edge, a wrong edge, an unrecognized framework or deploy target
+labels: ["scan accuracy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The scan is pattern matching over committed files, so every organization
+        it has never met is a gap in it. This is the most useful report there is,
+        and it needs no fix attached.
+
+        Do not paste anything from a client repository you cannot share. A
+        redacted snippet, or just the name of the file and the tool, is enough.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is wrong
+      options:
+        - Something is missing from the map
+        - Something in the map is not real
+        - A repo's framework, commands or routes are wrong
+        - A deploy target or server was not found
+        - The runbook is wrong or empty where it should not be
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What orgami should have found
+      description: The repo (or a stand-in name for it), and what the map should say.
+      placeholder: |
+        A repo deploying through Coolify — orgami found no deploy tooling at all.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: The file it should have matched
+      description: >
+        The path, and the few lines that give it away. Redact anything private —
+        hostnames and secrets are never needed to fix a pattern.
+      render: text
+      placeholder: |
+        .coolify/docker-compose.yml
+          services:
+            app:
+              image: ghcr.io/<org>/<repo>
+    validations:
+      required: true
+
+  - type: textarea
+    id: got
+    attributes:
+      label: What the map says instead
+      description: >
+        The relevant part of `orgami query <repo>`, or the node from
+        `map/graph.json`. Redact hosts.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: orgami version
+      description: Output of `orgami version`.
+    validations:
+      required: true

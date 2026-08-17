@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or setup help
+    url: https://github.com/achevalier-dev/orgami/discussions
+    about: How to run it, how to point it at an org, whether it can do something — ask here.
+  - name: A leak or a screening bypass
+    url: mailto:ad@antoinedv.com
+    about: Anything that puts one client's information in another's notes. Email, do not open an issue.

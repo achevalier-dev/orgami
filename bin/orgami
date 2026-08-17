@@ -61,6 +61,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
   orgami schedule [--off]               run weekly, on systemd or launchd
+  orgami version                        which version is installed
 
 Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.
 EOF
@@ -166,6 +167,9 @@ case $cmd in
     ;;
   help | -h | --help)
     usage
+    ;;
+  version | -v | --version)
+    echo "orgami $(jq -r '.version // "unknown"' "$ROOT/manifest.json")"
     ;;
   *)
     usage >&2

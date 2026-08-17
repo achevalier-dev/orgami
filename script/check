@@ -27,12 +27,26 @@ lint() {
     echo "shellcheck: clean at warning severity"
 }
 
+# The whole deterministic half of the weekly report, on a fixture week. No
+# GitHub token, no org, no model.
+stats() {
+  local out
+  out=$(jq -f lib/stats.jq test/fixtures/week.json)
+  local merged reviewless
+  merged=$(jq -r .merged <<<"$out")
+  reviewless=$(jq -r .merged_without_review <<<"$out")
+  [[ $merged == 3 ]] || { echo "expected 3 merged, got $merged" >&2; return 1; }
+  [[ $reviewless == 2 ]] || { echo "expected 2 unreviewed, got $reviewless" >&2; return 1; }
+  echo "stats.jq: fixture week reads back correctly"
+}
+
 case ${1-} in
   --syntax-only) syntax ;;
   --lint-only) lint ;;
-  "") syntax && lint ;;
+  --stats) stats ;;
+  "") syntax && lint && stats ;;
   *)
-    echo "usage: script/check [--syntax-only | --lint-only]" >&2
+    echo "usage: script/check [--syntax-only | --lint-only | --stats]" >&2
     exit 2
     ;;
 esac

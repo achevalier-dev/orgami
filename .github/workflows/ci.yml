@@ -27,12 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: every jq program parses
-        run: |
-          for f in lib/*.jq; do
-            echo "== $f"
-            jq -n -f "$f" </dev/null >/dev/null || exit 1
-          done
+      - name: the stats program runs on the fixture week
+        run: ./script/check --stats
 
       - name: every manifest is valid json
         run: |

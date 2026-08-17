@@ -1,67 +1,67 @@
 # The README demo, recorded with vhs — https://github.com/charmbracelet/vhs
 #
-#   brew install vhs        # or: pacman -S vhs, go install github.com/charmbracelet/vhs@latest
-#   vhs docs/demo.tape      # writes docs/demo.gif
+#   vhs docs/demo.tape        # writes docs/demo.gif, run from the repo root
 #
-# Before recording, map an organization you are willing to publish. A client's
-# repository names, hosts and IP addresses end up in every frame of this GIF, so
-# record against a public org or one of your own — never a client's:
+# It records against a mapped copy of a public organization, so nothing in the
+# GIF belongs to a client. Reproduce that first — it takes about a minute:
 #
 #   export ORGAMI_HOME=/tmp/orgami-demo
-#   orgami init demo --org <a-public-org>
-#   orgami scan
+#   orgami init demo --org honojs
+#   orgami scan --jobs 8 && orgami doc && orgami pull --last 1
 #
-# Then set DEMO_REPO below to a repo in that org and run vhs.
+# Never record against a client's organization. Repository names, hostnames and
+# IP addresses end up in every frame, and orgami's note screening does not cover
+# a GIF. The --week below is the week that was current when this was recorded;
+# `orgami pull --last 1` and the matching week is the pair to change.
 
 Output docs/demo.gif
 
 Set Shell bash
-Set FontSize 16
+Set FontSize 14
 Set Width 1200
-Set Height 750
+Set Height 720
 Set Padding 20
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 45ms
-Set PlaybackSpeed 1.0
+Set TypingSpeed 40ms
+Set WindowBar Colorful
+Set BorderRadius 8
 
 Env ORGAMI_HOME "/tmp/orgami-demo"
-Env DEMO_REPO "CHANGE-ME"
-Env PS1 "\033[38;5;12m❯\033[0m "
 
 Hide
-Type "clear" Enter
+Type "unset PROMPT_COMMAND; PS1='❯ '; clear" Enter
 Show
 
-# What an agent reads before it touches a repository.
-Type "orgami context $DEMO_REPO" Sleep 500ms Enter
-Sleep 6s
+Sleep 600ms
 
-Hide
+# What a coding agent is handed at session start, before you type anything.
+Type "orgami brief honox" Sleep 500ms Enter
+Sleep 4500ms
+
 Type "clear" Enter
-Show
+Sleep 400ms
 
-# One node, and every edge that named it — with the file:line it came from.
-Type "orgami query $DEMO_REPO" Sleep 500ms Enter
-Sleep 5s
+# One node, and both directions of every edge — each with the file:line it was
+# read out of, so nothing here is a model's guess.
+Type "orgami query hono" Sleep 500ms Enter
+Sleep 5500ms
 
-Hide
 Type "clear" Enter
-Show
+Sleep 400ms
 
-# The whole map, browsable.
+# The whole map, browsable, same evidence in the preview pane.
 Type "orgami view" Sleep 500ms Enter
 Sleep 3s
-Type "api"
+Type "mid"
 Sleep 2500ms
-Down Sleep 700ms
-Down Sleep 1200ms
-Ctrl+C
-Sleep 1s
+Escape
+Sleep 700ms
 
-Hide
 Type "clear" Enter
-Show
+Sleep 400ms
 
-# This week, counted by jq and written by Claude.
-Type "orgami latest" Sleep 500ms Enter
-Sleep 6s
+# Every number in the weekly recap is computed by jq, never by a model.
+Set TypingSpeed 25ms
+Type "orgami report --stats-only --week 2026-W33 |" Enter
+Type "  jq '{merged, repos_touched, median_hours_to_merge, merged_without_review}'" Sleep 500ms Enter
+Sleep 4500ms

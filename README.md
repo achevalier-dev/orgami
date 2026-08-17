@@ -5,8 +5,11 @@ repo in a GitHub org — what each one is, how to run it, what it talks to, wher
 it deploys — recaps every pull request the org merged each week, and hands all of
 it to your coding agent at session start.
 
-<!-- Demo: record it with `vhs docs/demo.tape`, then replace this comment with:
-     ![orgami](docs/demo.gif) -->
+![orgami: the context an agent is handed, one node and its evidence, the map in
+the terminal, and the week's numbers](docs/demo.gif)
+
+<sub>Recorded against a public organization ([honojs](https://github.com/honojs))
+with `vhs docs/demo.tape` — every line in it came out of a committed file.</sub>
 
 - **A map you can check.** Every edge carries the `file:line` it came from, so
   nothing in it is a model's guess. Missing edge means "not found in committed

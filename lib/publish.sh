@@ -92,15 +92,27 @@ publish_front_page() {
 
 # One line per week, newest first.
 publish_report_index() {
-  local dest=$1 f week
+  local dest=$1 f week day
   {
     echo "$ORGAMI_MARK"
     echo "# Weekly recaps"
     echo
-    for f in $(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null | sort -r); do
+    while IFS= read -r f; do
       week=$(basename "$f" .md)
       echo "- [**$week**]($week.md) — $(sed -n '3p' "$f")"
-    done
+    done < <(find "$DIR/reports" -maxdepth 1 -name '*.md' 2>/dev/null | sort -r)
+
+    # The last fortnight of daily digests. Older ones stay in the directory and
+    # in git; an index nobody scrolls is not an index.
+    if compgen -G "$DIR/reports/daily/*.md" >/dev/null; then
+      echo
+      echo "# Daily"
+      echo
+      while IFS= read -r f; do
+        day=$(basename "$f" .md)
+        echo "- [$day](daily/$day.md) — $(sed -n '/^[0-9]/p' "$f" | tail -1)"
+      done < <(find "$DIR/reports/daily" -maxdepth 1 -name '*.md' 2>/dev/null | sort -r | head -14)
+    fi
   } >"$dest/reports/README.md"
 }
 
@@ -140,6 +152,10 @@ cmd_publish() {
   local dest="$work/$path"
   mkdir -p "$dest/reports"
   cp -f "$DIR/reports/"*.md "$dest/reports/" 2>/dev/null || true
+  if compgen -G "$DIR/reports/daily/*.md" >/dev/null; then
+    mkdir -p "$dest/reports/daily"
+    cp -f "$DIR/reports/daily/"*.md "$dest/reports/daily/" 2>/dev/null || true
+  fi
   local f
   for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json repos.json coupling.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true

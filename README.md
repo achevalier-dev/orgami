@@ -115,6 +115,27 @@ file.
 That division is deliberate. A model asked to both count and narrate will do
 neither reliably, and a recap nobody trusts the numbers in is not worth writing.
 
+### And a digest of the day
+
+```bash
+orgami daily                  # today, so far
+orgami daily --yesterday      # what the timer runs each weekday morning
+orgami daily --stats-only     # the numbers, no model call, no cost
+```
+
+A day is not a week in miniature: most of a day's work has not merged yet. So
+`orgami daily` reads four things — what merged, what opened, what is sitting
+open with nobody on it, and commits that never became a pull request at all,
+which is the half a merge-based recap cannot see. Same split as the weekly
+recap: `lib/daily.jq` computes every figure, the model writes around them, and
+bots are counted separately from people.
+
+It goes to `reports/daily/<date>.md` and nowhere else until you publish. **A
+quiet day produces no file** — a digest that says "nothing happened" every
+weekend teaches people to stop opening it. Schedule it with `orgami schedule
+--daily` (weekday mornings, on the same systemd, launchd or cron path as the
+weekly run).
+
 ## The map
 
 `orgami scan` shallow-clones every non-archived, non-fork repo in the org and

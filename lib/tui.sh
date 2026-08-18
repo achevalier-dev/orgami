@@ -224,16 +224,24 @@ tui_rows_notes() {
 }
 
 tui_rows_recaps() {
-  local d="$DIR/reports" f week first
-  [[ -d $d ]] && compgen -G "$d/*.md" >/dev/null ||
+  local d="$DIR/reports" f week first kind
+  [[ -d $d ]] && { compgen -G "$d/*.md" >/dev/null || compgen -G "$d/daily/*.md" >/dev/null; } ||
     { tui_empty "no recaps yet" "orgami report writes this week's"; return 0; }
   while IFS= read -r f; do
     week=$(basename "$f" .md)
-    first=$(grep -m1 -E '^[A-Za-z]' "$f" 2>/dev/null | cut -c1-70)
-    printf 'recap:%s\t%s▤ %s%s%s  %s%s%s\n' \
-      "$f" "$(style_kind_color repo)" "$S_R" "$(printf '%-12s' "$week")" "$S_R" \
+    case $f in
+      */daily/*) kind="daily" ;;
+      *) kind="weekly" ;;
+    esac
+    first=$(sed -n 's/^# //p' "$f" 2>/dev/null | head -1)
+    [[ -n $first ]] || first=$(grep -m1 -E '^[A-Za-z]' "$f" 2>/dev/null)
+    first=${first:0:56}
+    printf 'recap:%s\t%s▤ %s%s  %s%s%s  %s%s%s\n' \
+      "$f" "$(style_kind_color repo)" "$S_R" "$(printf '%-11s' "$week")" \
+      "$S_MUTED" "$(printf '%-7s' "$kind")" "$S_R" \
       "$S_FAINT" "$first" "$S_R"
-  done < <(find "$d" -maxdepth 1 -name '*.md' | sort -r)
+  done < <({ find "$d" -maxdepth 1 -name '*.md' 2>/dev/null
+             find "$d/daily" -maxdepth 1 -name '*.md' 2>/dev/null; } | sort -r)
 }
 
 # A tab with nothing in it says what would put something there, rather than

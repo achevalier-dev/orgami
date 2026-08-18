@@ -1,0 +1,87 @@
+{
+  "company": "acme",
+  "org": "acme-inc",
+  "date": "2026-05-14",
+  "merged": [
+    {
+      "number": 412, "title": "Retry the webhook delivery instead of dropping it",
+      "url": "https://github.com/acme-inc/billing-api/pull/412",
+      "repository": { "name": "billing-api" }, "author": { "login": "dev-one" },
+      "createdAt": "2026-05-14T09:00:00Z", "mergedAt": "2026-05-14T12:00:00Z",
+      "additions": 84, "deletions": 12, "changedFiles": 4,
+      "bodyText": "Stripe webhooks that failed once were never retried.",
+      "labels": { "nodes": [{ "name": "bug" }] },
+      "reviews": { "nodes": [{ "state": "APPROVED", "author": { "login": "dev-two" } }] },
+      "reviewThreads": { "nodes": [] }
+    },
+    {
+      "number": 89, "title": "Move the nightly export to the jobs runner",
+      "url": "https://github.com/acme-inc/warehouse-jobs/pull/89",
+      "repository": { "name": "warehouse-jobs" }, "author": { "login": "dev-two" },
+      "createdAt": "2026-05-14T08:00:00Z", "mergedAt": "2026-05-14T09:00:00Z",
+      "additions": 620, "deletions": 430, "changedFiles": 21,
+      "bodyText": "The export was timing out on the web dyno.",
+      "labels": { "nodes": [] },
+      "reviews": { "nodes": [] }, "reviewThreads": { "nodes": [] }
+    },
+    {
+      "number": 90, "title": "Bump the base image",
+      "url": "https://github.com/acme-inc/warehouse-jobs/pull/90",
+      "repository": { "name": "warehouse-jobs" }, "author": { "login": "dependabot" },
+      "createdAt": "2026-05-14T02:00:00Z", "mergedAt": "2026-05-14T02:30:00Z",
+      "additions": 2, "deletions": 2, "changedFiles": 1, "bodyText": "",
+      "labels": { "nodes": [{ "name": "dependencies" }] },
+      "reviews": { "nodes": [] }, "reviewThreads": { "nodes": [] }
+    }
+  ],
+  "opened": [
+    {
+      "number": 414, "title": "Split the payments client out of the API",
+      "url": "https://github.com/acme-inc/billing-api/pull/414",
+      "repository": { "name": "billing-api" }, "author": { "login": "dev-one" },
+      "createdAt": "2026-05-14T16:00:00Z", "mergedAt": null,
+      "additions": 300, "deletions": 40, "changedFiles": 9,
+      "bodyText": "Groundwork for the new provider.",
+      "labels": { "nodes": [] },
+      "reviews": { "nodes": [] }, "reviewThreads": { "nodes": [] }
+    }
+  ],
+  "open": [
+    {
+      "number": 414, "title": "Split the payments client out of the API",
+      "url": "https://github.com/acme-inc/billing-api/pull/414",
+      "repository": { "name": "billing-api" }, "author": { "login": "dev-one" },
+      "createdAt": "2026-05-14T16:00:00Z", "mergedAt": null,
+      "additions": 300, "deletions": 40, "changedFiles": 9, "bodyText": "",
+      "labels": { "nodes": [] },
+      "reviews": { "nodes": [] }, "reviewThreads": { "nodes": [] }
+    },
+    {
+      "number": 400, "title": "Rewrite the invoice PDF renderer",
+      "url": "https://github.com/acme-inc/billing-api/pull/400",
+      "repository": { "name": "billing-api" }, "author": { "login": "dev-three" },
+      "createdAt": "2026-05-08T10:00:00Z", "mergedAt": null,
+      "additions": 900, "deletions": 120, "changedFiles": 30, "bodyText": "",
+      "labels": { "nodes": [] },
+      "reviews": { "nodes": [{ "state": "COMMENTED", "author": { "login": "dev-one" } }] },
+      "reviewThreads": { "nodes": [] }
+    }
+  ],
+  "commits": [
+    {
+      "repository": { "name": "billing-api" }, "author": { "login": "dev-one" },
+      "message": "fix(webhooks): cap the retry backoff (#412)", "sha": "a1b2c3d",
+      "at": "2026-05-14T11:40:00Z", "pull_request": "412"
+    },
+    {
+      "repository": { "name": "ops-scripts" }, "author": { "login": "dev-two" },
+      "message": "rotate the staging credentials", "sha": "9f8e7d6",
+      "at": "2026-05-14T17:10:00Z", "pull_request": null
+    },
+    {
+      "repository": { "name": "ops-scripts" }, "author": { "login": "github-actions" },
+      "message": "chore: regenerate the changelog", "sha": "1122334",
+      "at": "2026-05-14T18:00:00Z", "pull_request": null
+    }
+  ]
+}

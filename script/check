@@ -46,6 +46,22 @@ stats() {
   [[ $merged == 3 ]] || { echo "expected 3 merged, got $merged" >&2; return 1; }
   [[ $reviewless == 2 ]] || { echo "expected 2 unreviewed, got $reviewless" >&2; return 1; }
   echo "stats.jq: fixture week reads back correctly"
+
+  local day
+  day=$(jq -f lib/daily.jq test/fixtures/day.json)
+  local want got k
+  # merged and commits count people only; the bot rows are reported apart, and
+  # a commit with no pull request behind it is the number the weekly recap
+  # cannot see.
+  for k in "merged=2" "merged_by_bots=1" "commits=2" "commits_outside_prs=1" \
+    "commits_by_bots=1" "repos_touched=3" "authors=2" "merged_without_review=1"; do
+    want=${k#*=}
+    got=$(jq -r ".${k%%=*}" <<<"$day")
+    [[ $got == "$want" ]] || { echo "daily.jq: ${k%%=*} expected $want, got $got" >&2; return 1; }
+  done
+  got=$(jq -r '.waiting[0].number' <<<"$day")
+  [[ $got == 400 ]] || { echo "daily.jq: oldest unreviewed PR should lead, got $got" >&2; return 1; }
+  echo "daily.jq: fixture day reads back correctly"
 }
 
 case ${1-} in

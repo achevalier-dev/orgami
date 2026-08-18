@@ -116,6 +116,20 @@ linkify_prs() {
     -e 's%(^|[[:space:](])([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*)#([0-9]+)%\1[\2/\3#\4](https://github.com/\2/\3/pull/\4)%g'
 }
 
+# Same, for the short `repo#123` form a one-day digest uses. The organization
+# comes from the config, and the repository has to be one the map already knows
+# — so a link still cannot be invented, only derived.
+linkify_repo_prs() {
+  local org=$1 graph=$2 names
+  [[ -f $graph ]] || { cat; return 0; }
+  names=$(jq -r '[.nodes[] | select(.kind == "repo") | .name]
+                 | map(gsub("[.]"; "[.]")) | join("|")' "$graph" 2>/dev/null)
+  [[ -n $names ]] || { cat; return 0; }
+  sed -E \
+    -e "s%\`($names)#([0-9]+)\`%[\1#\2](https://github.com/$org/\1/pull/\2)%g" \
+    -e "s%(^|[[:space:](])($names)#([0-9]+)%\1[\2#\3](https://github.com/$org/\2/pull/\3)%g"
+}
+
 # A model call can die mid-response and hand back an error string. Anything
 # stored as content has to look like what was asked for, or it is thrown away.
 # $1 the text, $2 a grep -E pattern the text must contain somewhere.

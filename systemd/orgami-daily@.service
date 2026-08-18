@@ -1,0 +1,10 @@
+[Unit]
+Description=orgami daily digest for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=ORGAMI_COMPANY=%i
+ExecStart=%h/.local/bin/orgami daily --yesterday
+TimeoutStartSec=15min

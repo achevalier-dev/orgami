@@ -2,6 +2,35 @@
 # orgami pull — cache merged PRs for a week from the GitHub GraphQL search API.
 # Re-running the same week overwrites its cache file; nothing else is touched.
 
+# One search query, every page of it, as a JSON array of pull requests on stdout.
+# `orgami daily` runs the same query shape over a single day.
+pull_search() {
+  local q=$1 after="null" page=0 nodes tmp all
+  all=$(mktemp)
+  echo '[]' >"$all"
+
+  while :; do
+    if [[ $after == "null" ]]; then
+      nodes=$(gh api graphql -F query="@$ROOT/lib/prs.graphql" -f q="$q")
+    else
+      nodes=$(gh api graphql -F query="@$ROOT/lib/prs.graphql" -f q="$q" -f after="$after")
+    fi
+
+    page=$((page + 1))
+    tmp=$(mktemp)
+    jq --slurpfile new <(jq '[.data.search.nodes[] | select(.number != null)]' <<<"$nodes") \
+      '. + $new[0]' "$all" >"$tmp"
+    mv "$tmp" "$all"
+
+    [[ $(jq -r '.data.search.pageInfo.hasNextPage' <<<"$nodes") == "true" ]] || break
+    after=$(jq -r '.data.search.pageInfo.endCursor' <<<"$nodes")
+    [[ $page -lt 20 ]] || { log "stopping at 1000 results (GitHub search cap) — narrow the range"; break; }
+  done
+
+  cat "$all"
+  rm -f "$all"
+}
+
 cmd_pull() {
   load_company
   need gh

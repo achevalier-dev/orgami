@@ -52,6 +52,8 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami report [--week YYYY-Www] [--model M] [--stats-only]
                                         write the weekly recap
   orgami latest [--week W] [--raw]      read the newest recap
+  orgami daily [--date D | --yesterday] [--stats-only]
+                                        what the org did in one day
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
@@ -114,6 +116,11 @@ case $cmd in
   report)
     source "$ROOT/lib/report.sh"
     cmd_report "$@"
+    ;;
+  daily)
+    source "$ROOT/lib/pull.sh"
+    source "$ROOT/lib/daily.sh"
+    cmd_daily "$@"
     ;;
   scan)
     source "$ROOT/lib/scan.sh"

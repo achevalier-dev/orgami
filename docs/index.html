@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>orgami — a map of your GitHub organization you can check</title>
+<meta name="description" content="orgami maps every repository in your GitHub organization — what each one is, how to run it, what it talks to, where it deploys — writes daily and weekly digests, keeps the team's notes, and hands all of it to your coding agent at session start. Bash, gh, jq. No daemon, no database.">
+<link rel="canonical" href="https://achevalier-dev.github.io/orgami/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="orgami — a map of your GitHub organization you can check">
+<meta property="og:description" content="Every edge carries the file:line it came from. Daily and weekly digests where jq computes the numbers. One memory for the team, handed to your coding agent at session start.">
+<meta property="og:url" content="https://achevalier-dev.github.io/orgami/">
+<meta property="og:image" content="https://raw.githubusercontent.com/achevalier-dev/orgami/main/docs/demo.gif">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #1a1a19;
+    --muted: #5d5c58;
+    --line: #e2e0da;
+    --accent: #b5502a;
+    --code-bg: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14140f;
+      --panel: #1c1c17;
+      --ink: #ecebe4;
+      --muted: #a3a196;
+      --line: #2e2e26;
+      --accent: #e8865c;
+      --code-bg: #22221b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.65 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem; }
+  header { padding: 4.5rem 0 2rem; }
+  h1 {
+    font-size: 2.6rem; line-height: 1.1; margin: 0 0 .4rem;
+    letter-spacing: -.02em; font-weight: 650;
+  }
+  h1 .sub { display: block; font-size: 1rem; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-top: .6rem; }
+  .lede { font-size: 1.2rem; margin: 1.5rem 0 0; }
+  .lede strong { font-weight: 620; }
+  h2 { font-size: 1.25rem; margin: 3rem 0 .75rem; letter-spacing: -.01em; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  code, pre { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font-size: .88em; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .9rem 1rem; overflow-x: auto; font-size: .88rem; line-height: 1.55; margin: 0 0 1rem;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cta { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1.75rem 0 0; }
+  .btn {
+    display: inline-block; padding: .55rem 1rem; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    text-decoration: none; font-size: .95rem;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  figure { margin: 2.5rem 0 0; }
+  figure img { width: 100%; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; display: block; }
+  figcaption { color: var(--muted); font-size: .85rem; margin-top: .6rem; }
+  ul { padding-left: 1.15rem; margin: 0 0 1rem; }
+  li { margin-bottom: .6rem; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.5rem 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 1rem 1.1rem; }
+  .card h3 { margin: 0 0 .4rem; font-size: .98rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .93rem; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 3.5rem 0 0; }
+  footer { color: var(--muted); font-size: .9rem; padding: 1.5rem 0 4rem; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>orgami
+    <span class="sub">org + origami — folding a flat sheet of repositories into a shape you can see.</span>
+  </h1>
+  <p class="lede"><strong>Ten repos, eight people, and nobody whose job it is to write the docs.</strong>
+  orgami maps every repository in your GitHub organization — what each one is, how to run it,
+  what it talks to, where it deploys — digests what the team shipped today and this week, keeps
+  the things you only learn once, and hands all of it to your coding agent at session start.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/achevalier-dev/orgami">View on GitHub</a>
+    <a class="btn" href="https://github.com/achevalier-dev/orgami#install">Install</a>
+    <a class="btn" href="https://github.com/achevalier-dev/orgami/blob/main/docs/map.md">How the map is built</a>
+  </div>
+</header>
+
+<figure>
+  <img src="demo.gif" alt="orgami: the context an agent is handed, one node and its evidence, the map in the terminal, and the week's numbers">
+  <figcaption>Recorded against a public organization
+  (<a href="https://github.com/honojs">honojs</a>) with <code>vhs docs/demo.tape</code> —
+  every line in it came out of a committed file.</figcaption>
+</figure>
+
+<h2>What it is for</h2>
+<p>The size of team where everyone touches everything: no architect holding the diagram,
+no wiki that survived the last three months, and a new hire or a coding agent expected to
+be useful on day one.</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>A map you can check</h3>
+    <p>Every edge carries the <code>file:line</code> it came from, so nothing in it is a
+    model's guess. A missing edge means “not found in committed configuration”, never
+    “not connected”.</p>
+  </div>
+  <div class="card">
+    <h3>Digests you can trust the numbers in</h3>
+    <p><code>jq</code> computes every figure; Claude only writes the prose, and is told the
+    numbers rather than asked to count.</p>
+  </div>
+  <div class="card">
+    <h3>One memory for the team</h3>
+    <p>The cause someone found at 2am gets written down once — often without anyone typing
+    it — and everyone's agent reads it.</p>
+  </div>
+  <div class="card">
+    <h3>Nothing to run</h3>
+    <p>Open Claude Code or Cursor in a mapped checkout and the repo's stack, commands,
+    linked repos and notes are already in the session.</p>
+  </div>
+</div>
+
+<h2>Install</h2>
+<p>One command. It installs what is missing, puts <code>orgami</code> on your PATH, and
+wires up Claude Code and Cursor if they are on the machine.</p>
+<pre><code>curl -fsSL https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstrap.sh | bash</code></pre>
+<p>Windows, in PowerShell:</p>
+<pre><code>irm https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstrap.ps1 | iex</code></pre>
+<p>Then, once, on one machine:</p>
+<pre><code>gh auth login
+orgami init     # map your organization</code></pre>
+<p>Everyone else on the team runs <code>orgami join</code> and picks it up — no scan, no
+clones. <code>--dry-run</code> prints every step without touching anything;
+<a href="https://github.com/achevalier-dev/orgami/blob/main/docs/install.md">installing by
+hand</a> is documented too.</p>
+
+<h2>The map</h2>
+<p><code>orgami scan</code> shallow-clones every non-archived, non-fork repo in the
+organization and pattern-matches what is committed — deploy tooling, servers, backing
+services, repo-to-repo references, frameworks, run and test commands, routes, shared
+environment contracts. The result is <code>map/graph.json</code>; the architecture
+document, the mermaid diagrams and the terminal view all render from it.</p>
+<pre><code>orgami view              # the map, the repos, the notes and the recaps, in one screen
+orgami query thruster    # one node and its edges, as text</code></pre>
+<p>Beside it sit the organization's gathered conventions, decisions mined from merged pull
+requests, runbooks per repo, and which repos keep changing together.</p>
+
+<h2>The digests</h2>
+<p>A day is not a week in miniature: most of a day's work has not merged yet. So
+<code>orgami daily</code> reads what merged, what opened, what is sitting open with nobody
+on it, and commits that never became a pull request at all — the half a merge-based recap
+cannot see. A quiet day produces no file.</p>
+<pre><code>orgami daily --stats-only     # the numbers, no model call, no cost
+orgami report                 # the week, written from the same statistics</code></pre>
+<p>A model asked to both count and narrate will do neither reliably, and a digest nobody
+trusts the numbers in is not worth writing.</p>
+
+<h2>Cost</h2>
+<p>Two Claude calls a week — the recap and the decision mining — plus one short one per
+weekday morning if the daily digest is on. Everything else is <code>gh</code>,
+<code>git</code>, <code>jq</code> and <code>grep</code>, and every
+<code>--stats-only</code> run costs nothing at all. No daemon, no database, no web app:
+Bash, a timer, and plain files that diff cleanly in git.</p>
+
+<hr class="rule">
+<footer>
+  <p>MIT licensed. Bug reports and patches welcome — the
+  <a href="https://github.com/achevalier-dev/orgami/blob/main/CONTRIBUTING.md">contributing
+  guide</a> covers testing orgami with no organization and no token. If the scan got your
+  organization's shape wrong, that is the most useful report there is.</p>
+  <p><a href="https://github.com/achevalier-dev/orgami">github.com/achevalier-dev/orgami</a></p>
+</footer>
+
+</div>
+</body>
+</html>

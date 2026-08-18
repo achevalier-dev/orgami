@@ -65,6 +65,7 @@ Company state, never in this repo:
   map/graph.json       nodes and edges, every one tagged extracted or inferred
   map/graph.html       the same graph, force-directed, in one openable file
   map/depth.json       what each repo exports and imports, parsed (orgami depth)
+                       never published — too big for a diff anybody reads
   map/repos.json       one profile per repo
   map/coupling.json    which repos change together
   map/live.json        what is deployed, per provider, with the age of the reading

@@ -114,6 +114,12 @@ A relative path is never a cross-repo edge, and no repository is ever pointed at
 itself. See [the confidence tag](map.md#extracted-and-inferred) for what the two
 labels mean everywhere else in the map.
 
+`orgami publish` deliberately leaves it behind. It is the symbol index for the
+whole organization — ninety thousand lines against `graph.json`'s two thousand —
+and a docs repo whose weekly diff people actually read is the wrong home for a
+file that size. `orgami depth --symbol` and the MCP tool read it locally, which
+is where the question gets asked anyway.
+
 ## Where it shows up
 
 - **`orgami context <repo>`** and the repo page get a **Public surface**

@@ -172,9 +172,15 @@ cmd_publish() {
     cp -f "$DIR/reports/daily/"*.md "$dest/reports/daily/" 2>/dev/null || true
   fi
   local f
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json graph.html repos.json coupling.json depth.json; do
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json graph.html repos.json coupling.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
+
+  # depth.json stays on the machine that parsed. It is the symbol index for
+  # forty repositories — ninety thousand lines against graph.json's two
+  # thousand — and a docs repo people read the weekly diff of is the wrong home
+  # for a file that size. `orgami depth --symbol` and the MCP tool read it
+  # locally, which is where the question gets asked anyway.
 
   # The live reading is a snapshot of one person's view of a cloud account, and
   # it goes stale in the repo where the rest of the map does not. It reaches the

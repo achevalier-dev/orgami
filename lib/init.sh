@@ -3,6 +3,7 @@
 
 cmd_init() {
   local company="" org="" docs_repo="" docs_path="orgami"
+  local daily=false daily_at="08:00"
   company=${1:-}
   shift || true
   while [[ $# -gt 0 ]]; do
@@ -10,9 +11,14 @@ cmd_init() {
       --org) org=$2; shift 2 ;;
       --docs-repo) docs_repo=$2; shift 2 ;;
       --docs-path) docs_path=$2; shift 2 ;;
+      --daily) daily=true; shift ;;
+      --no-daily) daily=false; shift ;;
+      --daily-at) daily_at=$2; daily=true; shift 2 ;;
       *) die "unknown flag: $1" ;;
     esac
   done
+
+  [[ $daily_at =~ ^[0-2][0-9]:[0-5][0-9]$ ]] || die "--daily-at wants HH:MM, got '$daily_at'"
 
   [[ -n $company ]] || die "usage: orgami init <company> --org <github-org> [--docs-repo <url>]"
   [[ -n $org ]] || die "--org is required (the GitHub organization login)"
@@ -30,7 +36,10 @@ cmd_init() {
     --arg org "$org" \
     --arg docs_repo "$docs_repo" \
     --arg docs_path "$docs_path" \
+    --argjson daily "$daily" \
+    --arg daily_at "$daily_at" \
     '{company: $company, org: $org, docs_repo: $docs_repo, docs_path: $docs_path,
+      daily: $daily, daily_at: $daily_at,
       exclude: [], include: [], report_model: "claude-sonnet-5"}' \
     >"$dir/config.json"
 
@@ -42,6 +51,10 @@ cmd_init() {
   mv "$tmp" "$ORGAMI_HOME/config.json"
 
   echo "created $dir"
+  if [[ $daily == true ]]; then
+    ORGAMI_COMPANY=$company "$ORGAMI_BIN" schedule --daily >/dev/null 2>&1 ||
+      log "could not install the daily timer — orgami schedule --daily"
+  fi
   echo "next: orgami pull && orgami scan"
 }
 

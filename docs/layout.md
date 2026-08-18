@@ -38,6 +38,8 @@ test/fixtures/         a fake week and a fake day, for testing with no org
 bootstrap.sh           the one-command install for macOS, Linux and WSL
 bootstrap.ps1          the same for Windows
 systemd/               orgami-weekly@.service and .timer
+                       the daily units are rendered, not copied: the hour
+                       is a company setting
 ```
 
 Company state, never in this repo:

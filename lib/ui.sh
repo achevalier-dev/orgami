@@ -224,9 +224,20 @@ cmd_setup() {
     "$ORGAMI_BIN" schedule || gum style --foreground 3 "could not schedule it — orgami schedule"
   fi
 
+  # The digest is a second, much smaller habit: one model call a weekday
+  # morning, and nothing at all on a day where nothing landed.
+  ui_dim "A digest of each day — what merged, what opened, what is waiting on"
+  ui_dim "someone — costs one model call a weekday morning, and writes nothing"
+  ui_dim "on a quiet day."
+  if gum confirm "And a digest each weekday morning?"; then
+    "$ORGAMI_BIN" schedule --daily ||
+      gum style --foreground 3 "could not schedule it — orgami schedule --daily"
+  fi
+
   echo
   ui_dim "orgami        the menu"
   ui_dim "orgami view   browse the map"
+  ui_dim "orgami daily  today so far, any time you want it"
 }
 
 # ----------------------------------------------------------------- main menu
@@ -273,10 +284,16 @@ cmd_menu() {
     style_rule "$(style_cols)"
     echo
 
+    local daily_toggle="turn the daily digest on"
+    [[ $(jq -r '.daily // false' "$dir/config.json") == true ]] &&
+      daily_toggle="turn the daily digest off"
+
     action=$(gum choose \
       "browse the map" \
       "read the latest recap" \
       "write this week's recap" \
+      "write today's digest" \
+      "$daily_toggle" \
       "rebuild the map" \
       "publish to the docs repo" \
       "switch org" \
@@ -306,6 +323,18 @@ cmd_menu() {
         gum spin --spinner dot --title "writing the recap…" -- \
           "$ORGAMI_BIN" report || { gum style --foreground 1 "report failed"; ui_pause; continue; }
         gum style --foreground 2 "✓ reports/$(iso_week).md"
+        ui_pause
+        ;;
+      "write today's digest")
+        "$ORGAMI_BIN" daily || gum style --foreground 3 "the digest did not run"
+        ui_pause
+        ;;
+      "turn the daily digest off")
+        "$ORGAMI_BIN" schedule --daily --off || true
+        ui_pause
+        ;;
+      "turn the daily digest on")
+        "$ORGAMI_BIN" schedule --daily || true
         ui_pause
         ;;
       "rebuild the map")

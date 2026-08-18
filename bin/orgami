@@ -25,6 +25,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami                                the menu
   orgami init                           add a company, step by step
   orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
+                        [--daily [--daily-at HH:MM]]
   orgami use <company>                  make it the default
   orgami list                           companies configured here
   orgami claude-project [<url>]         the Claude project that reads the docs repo
@@ -72,6 +73,7 @@ orgami — weekly PR recaps and a map of an organization's repositories
   orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
   orgami weekly                         pull, report, scan, doc, publish
   orgami schedule [--off]               run weekly, on systemd or launchd
+  orgami schedule --daily [--at HH:MM]  and a digest each weekday morning
   orgami version                        which version is installed
 
 Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.

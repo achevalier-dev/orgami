@@ -132,9 +132,25 @@ bots are counted separately from people.
 
 It goes to `reports/daily/<date>.md` and nowhere else until you publish. **A
 quiet day produces no file** — a digest that says "nothing happened" every
-weekend teaches people to stop opening it. Schedule it with `orgami schedule
---daily` (weekday mornings, on the same systemd, launchd or cron path as the
-weekly run).
+weekend teaches people to stop opening it.
+
+It is a setting on the company, not a habit you have to remember. `orgami init`
+asks once; the menu toggles it; and either way it is two keys in the company
+config, so a second machine reading the same config agrees:
+
+```bash
+orgami init acme --org acme-inc --daily --daily-at 07:30
+orgami schedule --daily              # turn it on for a company that already exists
+orgami schedule --daily --at 09:00   # move it
+orgami schedule --daily --off        # stop it; the digests already written stay
+```
+
+```json
+{ "daily": true, "daily_at": "08:00" }
+```
+
+The timer runs `orgami daily --yesterday` on weekday mornings, through the same
+systemd, launchd or cron path as the weekly run.
 
 ## The map
 

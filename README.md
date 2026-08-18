@@ -118,6 +118,32 @@ orgami query thruster    # one node and its edges, as text
 with the evidence in the preview pane, `ctrl-o` to open a repo on GitHub and
 `ctrl-n` to write a note against the one you are reading.
 
+### And what is actually running
+
+The map says a repo is *configured* to deploy to Fly. It does not say the app
+still exists, what domain it answers on, or that anyone has deployed it since
+March. `orgami live` asks the providers — Vercel, Fly, AWS — and writes
+`map/live.json`.
+
+```bash
+orgami live                            # every provider the map already names
+orgami live --provider vercel,fly      # only these
+```
+
+It is a separate command on a separate file for a reason: a reading from a cloud
+account expires, needs credentials not everyone has, and has no `file:line` to
+open. So every row carries the age of the reading and the account it came from,
+after a week it stops being injected into agent context, and `orgami publish`
+leaves it on your machine unless you ask for it.
+
+**Nothing is attributed by resemblance.** `api-staging` is not assigned to
+`api`. A deployment is tied to a repo only when the map already has a
+`deploys-to` edge to that host, when the provider itself names the GitHub
+repository, or when an AWS resource is tagged with one. Everything else is
+reported as unmatched — which is usually the interesting part. Names and
+endpoints only; no environment values, ever.
+**[docs/live.md](docs/live.md)**.
+
 Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),
 `DECISIONS.md` (mined from merged PRs, one fragment per week), `RUNBOOK.md` and
 one runbook per repo, and `coupling.json` (which repos keep changing together).
@@ -226,8 +252,8 @@ screened against every org configured on the machine, so nothing crosses.
 
 Two Claude calls a week — the recap and the decision mining — plus one short one
 per weekday morning if the daily digest is on. One more if you use `orgami doc
---narrate`. Everything else is `gh`, `git`, `jq` and `grep`, and every
-`--stats-only` run costs nothing at all.
+--narrate`. Everything else — the scan, the map, `orgami live`, every
+`--stats-only` run — is `gh`, `git`, `jq` and `grep`, and costs nothing at all.
 
 ## Contributing
 
@@ -242,6 +268,7 @@ that is the most useful report there is.
 
 - [Installing by hand](docs/install.md) — per-distribution dependencies, WSL, the plugin
 - [The map](docs/map.md) — what the scan looks for, and what it refuses to infer
+- [What is running](docs/live.md) — `orgami live`, the providers, and why it is kept apart
 - [Other agents](docs/agents.md) — Cursor, MCP clients, `AGENTS.md`
 - [Team notes](docs/notes.md) — screening, review, pruning, `orgami join`
 - [Layout](docs/layout.md) — every file in this repo, and the state it keeps

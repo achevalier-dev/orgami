@@ -196,6 +196,23 @@ Three limits worth stating out loud rather than papering over:
 - **`generated` in `graph.json` is when the scan last ran.** If it is more than
   a week old and the question is load-bearing, say the map is stale.
 
+## What is running, and what is only configured
+
+The graph says what the committed files say: this repo is *configured* to deploy
+to Fly, to Vercel, to ECS. It does not say the app still exists or answers on
+that domain. When `map/live.json` is present, someone has asked the providers,
+and `orgami context` renders it as **Running now** with the age of the reading.
+
+Two rules for using it:
+
+- **Quote the age with the fact.** "Vercel says `web` was READY when this was
+  read three days ago" is honest; "web is live" is not. A row older than a week
+  is a rumour — say so, or leave it out.
+- **A repo with no row is not a repo with nothing running.** It may deploy
+  through a provider nobody has a reader for, or through one nobody has
+  credentials for on this machine. `unmatched` in the same file is the other
+  half: things running that nothing ties to a repo.
+
 ## Refreshing
 
 ```bash
@@ -206,6 +223,10 @@ orgami coupling                # recompute what changes together
 
 `orgami scan` shallow-clones every repo in the org. It takes minutes and hits the
 network — run it when the user asks, not on your own initiative.
+
+`orgami live` calls the user's cloud accounts — Vercel, Fly, AWS. Read-only, but
+they are their accounts and their credentials. Read `map/live.json` freely; run
+`orgami live` only when asked for it in that turn.
 
 `orgami publish` commits everything to the org's docs repo and pushes. Never
 run it unless the user asks for it in that turn.

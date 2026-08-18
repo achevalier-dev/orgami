@@ -96,3 +96,11 @@ Colour is on when a terminal is attached and off when the output is piped, so
   same-day and same-week co-occurrence, bots excluded. Correlation, not
   dependency, and labelled as such — but it is the blast radius no static scan
   can see, and it sharpens every week the timer runs.
+
+## What the scan will not tell you
+
+Everything above comes from committed files, which is what makes it checkable
+and the same for everyone. It is also why the map can say a repo is *configured*
+to deploy somewhere and not whether it still does. `orgami live` asks the
+providers themselves and keeps the answer in its own file, on its own clock —
+[docs/live.md](live.md).

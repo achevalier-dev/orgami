@@ -18,6 +18,7 @@ lib/style.sh           one palette for everything orgami prints
 lib/profile.sh         what a repo is: framework, commands, env, routes
 lib/card.sh            repo pages and `orgami context`
 lib/coupling.sh        which repos change together
+lib/live.sh            what the providers say is deployed right now
 lib/runbook.sh         how a repo runs, ships and breaks
 lib/notes.sh           the shared note memory
 lib/autonote.sh        notes drafted from a session that has ended
@@ -60,6 +61,7 @@ Company state, never in this repo:
   map/graph.json       nodes and edges
   map/repos.json       one profile per repo
   map/coupling.json    which repos change together
+  map/live.json        what is deployed, per provider, with the age of the reading
   map/ARCHITECTURE.md  rendered from the graph
   map/CONVENTIONS.md   the org's own agent instructions, gathered
   map/DECISIONS.md     decisions mined from pull requests, one section per week

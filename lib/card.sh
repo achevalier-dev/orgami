@@ -97,6 +97,11 @@ card_render() {
            end)
       | .[]' "$g"
 
+  if [[ -f $DIR/map/live.json ]]; then
+    source "$ROOT/lib/live.sh"
+    live_section "$repo"
+  fi
+
   if [[ -d $DIR/notes ]]; then
     source "$ROOT/lib/notes.sh"
     notes_for_repo "$repo"
@@ -185,6 +190,11 @@ context_overview() {
     fi
   fi
 
+  if [[ -f $DIR/map/live.json ]]; then
+    source "$ROOT/lib/live.sh"
+    live_overview
+  fi
+
   echo "## Biggest repos by recent work"
   echo
   find "$DIR/cache/prs" -name '*.json' -not -name '*.stats.json' 2>/dev/null |
@@ -238,6 +248,10 @@ cmd_brief() {
   echo "orgami — $COMPANY ($ORG), map from $(jq -r '.generated | .[0:10]' "$DIR/map/graph.json")"
   echo
   card_brief "$want" || return 0
+  if [[ -f $DIR/map/live.json ]]; then
+    source "$ROOT/lib/live.sh"
+    live_brief "$want"
+  fi
   source "$ROOT/lib/notes.sh"
   notes_for_repo "$want" | sed 's/^## What the team has learned/team notes on this repo:/'
   echo "full page: orgami context · org: orgami context --org · why: $DIR/map/DECISIONS.md"

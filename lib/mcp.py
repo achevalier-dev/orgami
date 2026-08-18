@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 ORGAMI = os.environ.get("ORGAMI_BIN") or "orgami"
 VERSION = "1.0.0"
@@ -107,6 +108,20 @@ TOOLS = [
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
+        "name": "orgami_live",
+        "description": (
+            "What the providers said was deployed the last time somebody asked them: "
+            "Vercel projects, Fly apps, tagged AWS services, with their state, their "
+            "domains and the age of the reading. Unlike the rest of the map this "
+            "expires — always quote how old it is, and treat anything over a week as "
+            "a rumour. Reads the stored file; it never calls a cloud account."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"repo": {"type": "string"}},
+        },
+    },
+    {
         "name": "orgami_conventions",
         "description": (
             "Every AGENTS.md, CLAUDE.md and CONTRIBUTING.md committed anywhere in the "
@@ -189,6 +204,65 @@ def search(query):
     return "\n".join(hits) if hits else f"Nothing in the map mentions {query!r}."
 
 
+def live(repo=None):
+    d = company_dir()
+    if not d:
+        return "No orgami company configured. Run `orgami init` or `orgami join`."
+    path = os.path.join(d, "map", "live.json")
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return (
+            "Nobody has asked the providers yet — no map/live.json. The map only "
+            "says what each repo is configured to deploy to. `orgami live` reads "
+            "the providers, and is the user's call to run."
+        )
+
+    age = None
+    if data.get("generated_epoch"):
+        age = max(0, int(time.time() - data["generated_epoch"]) // 86400)
+    when = "at an unknown time" if age is None else (
+        "today" if age == 0 else "yesterday" if age == 1 else f"{age} days ago"
+    )
+
+    rows = data.get("deployments") or []
+    if repo:
+        rows = [r for r in rows if r.get("repo") == repo]
+
+    out = [f"Read from {', '.join(data.get('providers') or ['nothing'])} {when}."]
+    if age is not None and age >= 7:
+        out.append("This is older than a week. Treat every line below as a rumour.")
+    out.append("")
+
+    if not rows:
+        out.append(
+            f"Nothing recorded for {repo}." if repo
+            else "No deployment could be tied to a repository."
+        )
+    for r in rows:
+        bits = [f"- {r.get('repo')}: {r.get('provider')} {r.get('name')}"]
+        if r.get("state"):
+            bits.append(f"[{r['state']}]")
+        if r.get("urls"):
+            bits.append(" ".join(r["urls"]))
+        if r.get("match"):
+            bits.append(f"(matched by {r['match']})")
+        out.append(" ".join(bits))
+
+    unmatched = data.get("unmatched") or []
+    if unmatched and not repo:
+        out.append("")
+        out.append("Running, but nothing ties it to a repository in the map:")
+        for u in unmatched:
+            out.append(f"- {u.get('provider')} {u.get('name')}")
+
+    for err in data.get("errors") or []:
+        out.append("")
+        out.append(f"{err.get('provider')} could not be read: {err.get('message')}")
+    return "\n".join(out)
+
+
 def call(name, args):
     if name == "orgami_context":
         repo = args.get("repo")
@@ -217,6 +291,8 @@ def call(name, args):
         return run(argv)
     if name == "orgami_decisions":
         return read_file("map", "DECISIONS.md")
+    if name == "orgami_live":
+        return live(args.get("repo"))
     if name == "orgami_conventions":
         return read_file("map", "CONVENTIONS.md")
     if name == "orgami_search":

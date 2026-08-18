@@ -160,6 +160,13 @@ cmd_publish() {
   for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json repos.json coupling.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
+
+  # The live reading is a snapshot of one person's view of a cloud account, and
+  # it goes stale in the repo where the rest of the map does not. It reaches the
+  # docs repo only when the org has said it should.
+  if [[ $(cfg live_publish false) == true ]]; then
+    cp -f "$DIR/map/live.json" "$dest/" 2>/dev/null || true
+  fi
   if compgen -G "$DIR/map/repos/*.md" >/dev/null; then
     mkdir -p "$dest/repos"
     cp -f "$DIR/map/repos/"*.md "$dest/repos/" 2>/dev/null || true
@@ -210,6 +217,12 @@ cmd_weekly() {
   cmd_report
   cmd_scan
   cmd_coupling
+  # Refresh a live reading that already exists. Nobody's first run of the timer
+  # starts talking to cloud accounts on its own.
+  if [[ -f $DIR/map/live.json ]]; then
+    source "$ROOT/lib/live.sh"
+    cmd_live --quiet >/dev/null || true
+  fi
   cmd_doc
   if [[ $(jq -r '(.workspaces // []) | length' "$DIR/config.json") -gt 0 ]]; then
     source "$ROOT/lib/agents.sh"

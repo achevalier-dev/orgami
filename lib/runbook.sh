@@ -67,39 +67,92 @@ runbook_render() {
   echo
   jq -r --argjson p "$prof" '
     [($p.meta.language // empty),
-     ($p.frameworks | if length > 0 then join(", ") else empty end)]
+     ($p.frameworks | if length > 0 then join(", ") else empty end),
+     (if ($p.meta.private // false) then "private" else "public" end)]
     | map(select(. != null and . != "")) | join(" · ")' <<<'{}'
   echo
+  jq -r --argjson p "$prof" '
+    if ($p.meta.description // "") == "" then empty
+    else ($p.meta.description, "") end' <<<'{}'
   echo "<sub>Derived from the scan of $(jq -r '.generated | .[0:10]' "$g"). Nothing here was written by a model.</sub>"
   echo
 
   # ---------------------------------------------------------------- run it
+  #
+  # A runbook is read by someone who needs one command, not a catalogue. The
+  # four that matter go first, under the role they play; everything else the
+  # repository declares is kept, folded away.
   echo "## Run it"
   echo
   jq -r --argjson p "$prof" '
-    ($p.commands.scripts | to_entries) as $s
+    def install:
+      { pnpm: "pnpm install", yarn: "yarn install", npm: "npm ci", bun: "bun install",
+        bundler: "bundle install", poetry: "poetry install", pip: "pip install -r requirements.txt",
+        uv: "uv sync", cargo: "cargo fetch", go: "go mod download", composer: "composer install",
+        mix: "mix deps.get" }[$p.commands.package_manager // ""] // "";
+
+    # The first script whose name matches each role, in the order a person needs
+    # them. Anything not claimed here is still listed, just not first.
+    def pick($names): ($p.commands.scripts // {}) | to_entries
+      | map(select(.key as $k | $names | index($k))) | .[0];
+
+    (pick(["dev", "start", "serve", "run"])) as $run
+    | (pick(["test"])) as $test
+    | (pick(["build", "compile"])) as $build
+    | (pick(["typecheck", "lint", "check"])) as $check
+    | [$run, $test, $build, $check] as $first
+    | [$first[] | select(. != null) | .key] as $claimed
+
     | (if ($p.commands.runtime // "") != "" or ($p.commands.package_manager // "") != ""
        then ["Needs " + ([($p.commands.runtime // empty), ($p.commands.package_manager // empty)]
              | map(select(. != null and . != "")) | join(", ")) + ".", ""]
        else [] end)
-      + (if ($s | length) > 0
-         then ($s | map("- `" + .key + "` — `" + .value + "`")) + [""]
-         else ["No run or test command is declared in the repository.", ""] end)
-      + (if ($p.commands.procfile | length) > 0
+
+      + (if install != "" then ["First time here:", "", "```bash", install, "```", ""] else [] end)
+
+      + (if ($first | map(select(. != null)) | length) > 0
+         then ($first | map(select(. != null))
+               | map("- **" + (if .key | test("^(dev|start|serve|run)$") then "run"
+                               elif .key == "test" then "test"
+                               elif .key | test("^(build|compile)$") then "build"
+                               else "check" end)
+                     + "** — `" + .value + "`"))
+              + [""]
+         else [] end)
+
+      + (($p.commands.scripts // {}) | to_entries
+         | map(select(.key as $k | ($claimed | index($k)) | not))
+         | if length == 0 then [] else
+             ["<details><summary>" + (length | tostring) + " more script"
+              + (if length == 1 then "" else "s" end) + " the repository declares</summary>", ""]
+             + map("- `" + .key + "` — `" + .value + "`")
+             + ["", "</details>", ""]
+           end)
+
+      + (if (($p.commands.scripts // {}) | length) == 0
+         then ["No run or test command is declared in the repository.", ""] else [] end)
+
+      + (if (($p.commands.procfile // []) | length) > 0
          then ["Processes: `" + ($p.commands.procfile | join("`, `")) + "`", ""]
          else [] end)
     | .[]' <<<'{}'
 
+  # What it reads. Naming the variables is the useful part; sorting them into
+  # "points somewhere" and "does not" only earned a line that said nothing.
   local envcount
   envcount=$(jq -r --argjson p "$prof" '$p.env | length' <<<'{}')
   if [[ ${envcount:-0} -gt 0 ]]; then
-    echo "It reads $envcount environment variables. The ones that point somewhere:"
-    echo
     jq -r --argjson p "$prof" '
-      [$p.env[] | select(test("_(URL|HOST|ENDPOINT|BASE|BUCKET|QUEUE|TOPIC|DSN)$"))]
-      | if length == 0 then ["- none obviously external"] else map("- `" + . + "`") end
+      ([$p.env[] | select(test("_(URL|HOST|ENDPOINT|BASE|BUCKET|QUEUE|TOPIC|DSN)$"))]) as $ext
+      | ["It reads " + ($p.env | length | tostring) + " environment variable"
+         + (if ($p.env | length) == 1 then "" else "s" end) + ": `"
+         + ($p.env | join("`, `")) + "`.", ""]
+        + (if ($ext | length) > 0
+           then ["Of those, `" + ($ext | join("`, `")) + "` "
+                 + (if ($ext | length) == 1 then "points" else "point" end)
+                 + " at something outside this repository.", ""]
+           else [] end)
       | .[]' <<<'{}'
-    echo
   fi
 
   runbook_section "$repo" setup
@@ -123,8 +176,48 @@ runbook_render() {
     | .[]' <<<'{}'
   echo
 
+  # What must be green before anything merges. Same data, different question.
+  jq -r --argjson p "$prof" '
+    [$p.workflows[]? | select((.deploys | not) and ((.on // []) | index("pull_request")))] as $ci
+    | if ($ci | length) == 0 then empty
+      else ["Before a merge, these run: "
+            + ($ci | map("**" + .name + "**") | join(", ")) + "."]
+      end | .[]' <<<'{}'
+  echo
+
   runbook_section "$repo" deploy
-  runbook_section "$repo" rollback
+
+  # Rolling back is derived from how it ships, and says so. A note tagged
+  # rollback overrides it, because a person who has done it knows better.
+  local rollback_note
+  rollback_note=$(runbook_notes_tagged "$repo" rollback)
+  if [[ -n $rollback_note ]]; then
+    echo "## Rolling it back"
+    echo
+    echo "$rollback_note"
+    echo
+  else
+    jq -r --argjson p "$prof" '
+      [$p.workflows[]? | select(.deploys)] as $d
+      | if ($d | length) == 0 then empty
+        else
+          ["## Rolling it back", ""]
+          + (if ($d[0].on // []) | index("push") then
+               ["Shipping runs on push, so the way back is a revert: put the previous state on the"
+                + " default branch and the same workflow (`" + $d[0].file + "`) ships it."]
+             elif ($d[0].on // []) | index("release") then
+               ["Shipping runs on a release, so a rollback is another release of the previous tag"
+                + " — `" + $d[0].file + "` runs again with it."]
+             elif ($d[0].on // []) | index("workflow_dispatch") then
+               ["`" + $d[0].file + "` can be dispatched by hand, so the previous ref can be shipped"
+                + " again without touching the branch."]
+             else
+               ["How to undo a deploy is not visible in `" + $d[0].file + "`."]
+             end)
+          + ["", "Derived from the workflow, not from anyone having done it. Once you have, record"
+             + " it with `orgami note --tag rollback` and this section becomes what you wrote.", ""]
+        end | .[]' <<<'{}'
+  fi
 
   # ------------------------------------------------------------ where it is
   local hosts services
@@ -152,9 +245,15 @@ runbook_render() {
   obs=$(jq -r --argjson p "$prof" '
     [$p.env[]? | select(test("SENTRY|BETTERSTACK|DATADOG|NEWRELIC|NEW_RELIC|LOGTAIL|ROLLBAR|GRAFANA|HONEYCOMB|BUGSNAG|PROMETHEUS"))] | .[]' <<<'{}')
 
-  if [[ -n $health || -n $obs ]]; then
+  local ships
+  ships=$(jq -r --argjson p "$prof" '[$p.workflows[]? | select(.deploys)] | length' <<<'{}')
+  if [[ -n $health || -n $obs || ${ships:-0} -gt 0 ]]; then
     echo "## Is it alive"
     echo
+    if [[ -z $health && ${ships:-0} -gt 0 ]]; then
+      echo "Nothing in the committed source answers on a health, status or readiness path, and this repository ships. Whatever tells you it is up lives somewhere this scan cannot see — \`orgami note --tag oncall\` puts it here."
+      echo
+    fi
     if [[ -n $health ]]; then
       echo "Health endpoints it serves:"
       echo
@@ -176,10 +275,16 @@ runbook_render() {
   # ------------------------------------------------------- what it drags
   local blast
   blast=$(jq -r --arg id "repo:$repo" '
-    [.edges[] | select(.kind == "calls" and (.from == $id or .to == $id))
-     | if .from == $id then "calls **" + (.to | sub("^repo:"; "")) + "** (`" + .evidence + "`)"
-       else "called by **" + (.from | sub("^repo:"; "")) + "** (`" + .evidence + "`)" end]
-    | unique | .[] | "- " + .' "$g" 2>/dev/null)
+    [.edges[] | select((.kind == "calls" or .kind == "references")
+                       and (.from == $id or .to == $id)
+                       and ((.from | startswith("repo:")) and (.to | startswith("repo:"))))
+     | (if .kind == "calls" then ["calls", "called by"] else ["references", "referenced by"] end) as $v
+     | if .from == $id
+       then $v[0] + " **" + (.to | sub("^repo:"; "")) + "**"
+            + (if (.evidence // "") == "" then "" else " (`" + .evidence + "`)" end)
+       else $v[1] + " **" + (.from | sub("^repo:"; "")) + "**"
+            + (if (.evidence // "") == "" then "" else " (`" + .evidence + "`)" end) end]
+    | unique | .[0:14] | .[] | "- " + .' "$g" 2>/dev/null)
   local coupled=""
   [[ -f $DIR/map/coupling.json ]] && coupled=$(jq -r --arg r "$repo" '
     [.pairs[] | select(.a == $r or .b == $r)]

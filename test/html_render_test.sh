@@ -17,6 +17,7 @@ fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 
 DIR="$fixture"
+# shellcheck disable=SC2034  # COMPANY is read by html_render, not by this test
 COMPANY="Ac<me> & Co"
 mkdir -p "$DIR/map"
 

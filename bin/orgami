@@ -30,6 +30,7 @@ orgami — your organization's map, digests and memory, in your agent's context
   orgami daily              what the org did today
   orgami report             this week's recap
   orgami scan               rebuild the map from every repo
+  orgami live               what is actually deployed, from the providers
   orgami publish            commit the map and the reports to the docs repo
   orgami schedule           run it on a timer, daily and weekly
 
@@ -59,6 +60,8 @@ The map
   orgami card <repo>                    the repo's page: stack, commands, links
   orgami runbook [<repo>]               how to run, ship and unbreak it
   orgami coupling                       which repos keep changing together
+  orgami live [--provider vercel,fly,aws] [--json]
+                                        what is deployed right now, per provider
 
 Digests
   orgami daily [--date D | --yesterday] [--stats-only]
@@ -169,6 +172,10 @@ case $cmd in
   coupling)
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
+    ;;
+  live)
+    source "$ROOT/lib/live.sh"
+    cmd_live "$@"
     ;;
   note-auto)
     source "$ROOT/lib/notes.sh"

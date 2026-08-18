@@ -72,14 +72,22 @@ profile() {
   echo "profile_routes: test paths excluded from endpoints list"
 }
 
+# `orgami live` attributes a deployment to a repo only when the map or an exact
+# name says so. Runs against a stub flyctl — no credentials, no network.
+live() {
+  ./test/live_match_test.sh >/dev/null
+  echo "live: deployments matched only on evidence, and dated"
+}
+
 case ${1-} in
   --syntax-only) syntax ;;
   --lint-only) lint ;;
   --stats) stats ;;
   --profile) profile ;;
-  "") syntax && lint && stats && profile ;;
+  --live) live ;;
+  "") syntax && lint && stats && profile && live ;;
   *)
-    echo "usage: script/check [--syntax-only | --lint-only | --stats]" >&2
+    echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile | --live]" >&2
     exit 2
     ;;
 esac

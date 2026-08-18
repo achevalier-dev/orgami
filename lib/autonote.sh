@@ -36,7 +36,8 @@ autonote_worth_reading() {
 }
 
 autonote_cap_reached() {
-  local stamp="$DIR/cache/autonote-$(date -u +%Y-%m-%d).count"
+  local stamp
+  stamp="$DIR/cache/autonote-$(date -u +%Y-%m-%d).count"
   local n=0
   [[ -f $stamp ]] && n=$(<"$stamp")
   [[ $n -lt $AUTONOTE_DAILY_CAP ]] || return 0

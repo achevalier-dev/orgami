@@ -128,9 +128,13 @@ rendered from it.
 inferred by a model, and every claim can be opened and checked.
 
 ```bash
-orgami view              # browse it in the terminal
+orgami view              # the map, the repos, the notes and the recaps, in one screen
 orgami query thruster    # one node and its edges, as text
 ```
+
+`orgami view` is four tabs over the same data — Map, Repos, Notes, Recaps —
+with the evidence in the preview pane, `ctrl-o` to open a repo on GitHub and
+`ctrl-n` to write a note against the one you are reading.
 
 Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),
 `DECISIONS.md` (mined from merged PRs, one fragment per week), `RUNBOOK.md` and

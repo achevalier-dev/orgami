@@ -18,13 +18,21 @@ syntax() {
   return $bad
 }
 
+# One file at a time, and without --external-sources: every lib carries a
+# `shellcheck shell=bash` directive, and following sources from the dispatcher
+# makes shellcheck walk the same libraries once per case arm — minutes of work
+# for findings it already reports per file.
 lint() {
   command -v shellcheck >/dev/null || {
     echo "shellcheck not installed — skipping (CI will run it)" >&2
     return 0
   }
-  shellcheck --severity=warning --external-sources "${SCRIPTS[@]}" &&
-    echo "shellcheck: clean at warning severity"
+  local f bad=0
+  for f in "${SCRIPTS[@]}"; do
+    shellcheck --severity=warning "$f" || bad=1
+  done
+  [[ $bad == 0 ]] && echo "shellcheck: ${#SCRIPTS[@]} scripts clean at warning severity"
+  return $bad
 }
 
 # The whole deterministic half of the weekly report, on a fixture week. No

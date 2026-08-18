@@ -32,18 +32,47 @@ never "not connected".
 
 ## The terminal view
 
-`orgami view` lists every node — repos first, then languages, tools, services
-and hosts — with the node's metadata and both directions of its edges in the
-preview pane. Type to filter, `ctrl-o` opens the repo on GitHub, `enter` prints
-the node into your scrollback.
+`orgami view` opens the map, the repos, the team's notes and the recaps as one
+screen: a list on the left, a preview on the right, and a header that says how
+stale the map is and whether this week has a recap yet.
 
-For one node without the TUI:
+```
+orgami · acme · acme-inc                                    mapped yesterday
+ Map │ Repos │ Notes │ Recaps                 44 repos · 348 edges · recap 2026-W33
+map ›                                                                    53/53
+  ▪ billing-api        repo    Go          Payments and webhook delivery
+  ▪ web                repo    TypeScript  Customer dashboard
+  ◆ api.acme.com       host
+  ◈ kamal              tool
+  ▣ postgres           service
+ tab switch · type filter · enter print · ctrl-o github · ctrl-n note · esc quit
+```
+
+Four tabs, `tab` and `shift-tab` between them:
+
+| Tab | What the list holds | What the preview shows |
+|---|---|---|
+| **Map** | every node — repos first, then languages, tools, services and hosts | the node, and both directions of every edge that named it |
+| **Repos** | one row per repo: language, runtime, how many edges touch it, when it was last pushed | the repo's card — how to run it, what it talks to, where it ships, what it serves, what it reads, and the team's notes on it |
+| **Notes** | what the team has recorded, newest first | the note, its author and its age |
+| **Recaps** | every weekly recap on disk | the recap, through `glow` when it is installed |
+
+Typing filters the list. `enter` prints whatever is under the cursor into your
+scrollback, so it can be copied or piped. `ctrl-o` opens the repo on GitHub,
+`ctrl-n` writes a note already attached to the repo you are looking at, `ctrl-r`
+re-reads the map from disk, and `esc` leaves.
+
+Every pane is a subcommand underneath, which is why the same text comes back
+outside the app:
 
 ```bash
-orgami query thruster
+orgami query thruster    # one node and its edges, as text
 orgami query kamal
 orgami query 51.158.10.20
 ```
+
+Colour is on when a terminal is attached and off when the output is piped, so
+`orgami query x | grep` stays clean. `NO_COLOR` turns it off everywhere.
 
 ## The four files beside the map
 

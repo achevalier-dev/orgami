@@ -98,6 +98,8 @@ case $cmd in
     ;;
   menu | setup)
     source "$ROOT/lib/init.sh"
+    source "$ROOT/lib/style.sh"
+    source "$ROOT/lib/tui.sh"
     source "$ROOT/lib/ui.sh"
     "cmd_$cmd" "$@"
     ;;
@@ -123,8 +125,15 @@ case $cmd in
     cmd_doc "$@"
     ;;
   view | query | show | open)
+    source "$ROOT/lib/style.sh"
+    source "$ROOT/lib/tui.sh"
     source "$ROOT/lib/view.sh"
     "cmd_$cmd" "$@"
+    ;;
+  _tui)
+    source "$ROOT/lib/style.sh"
+    source "$ROOT/lib/tui.sh"
+    cmd__tui "$@"
     ;;
   coupling)
     source "$ROOT/lib/coupling.sh"

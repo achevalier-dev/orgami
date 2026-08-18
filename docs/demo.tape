@@ -8,6 +8,7 @@
 #   export ORGAMI_HOME=/tmp/orgami-demo
 #   orgami init demo --org honojs
 #   orgami scan --jobs 8 && orgami doc && orgami pull --last 1
+#   orgami note --repo hono "a line for the Notes tab to show"
 #
 # Never record against a client's organization. Repository names, hostnames and
 # IP addresses end up in every frame, and orgami's note screening does not cover
@@ -49,11 +50,20 @@ Sleep 5500ms
 Type "clear" Enter
 Sleep 400ms
 
-# The whole map, browsable, same evidence in the preview pane.
+# The map, the repos, the team's notes and the recaps — one screen, four tabs.
 Type "orgami view" Sleep 500ms Enter
 Sleep 3s
 Type "mid"
-Sleep 2500ms
+Sleep 2s
+Backspace 3
+Sleep 500ms
+Tab
+Sleep 3s
+Down Sleep 700ms
+Down Sleep 1500ms
+Tab
+Sleep 3s
+Down Sleep 1800ms
 Escape
 Sleep 700ms
 

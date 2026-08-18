@@ -16,8 +16,14 @@ EOF
   return 1
 }
 
-ui_title() { gum style --foreground 4 --bold "$1"; }
-ui_dim() { gum style --foreground 8 "$1"; }
+ui_title() {
+  style_init
+  printf '%s%s%s\n' "${S_ACCENT}${S_B}" "$1" "$S_R"
+}
+ui_dim() {
+  style_init
+  printf '%s%s%s\n' "$S_MUTED" "$1" "$S_R"
+}
 
 ui_pause() {
   echo
@@ -262,8 +268,9 @@ cmd_menu() {
     export ORGAMI_COMPANY="$company"
 
     clear
-    ui_title "orgami · $company"
-    ui_dim "$(jq -r .org "$dir/config.json") · $(ui_status_line "$dir")"
+    style_init
+    COMPANY=$company DIR=$dir ORG=$(jq -r .org "$dir/config.json") tui_status_line
+    style_rule "$(style_cols)"
     echo
 
     action=$(gum choose \

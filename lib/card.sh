@@ -122,6 +122,7 @@ cmd_card() {
 
 # Resolves a repo from an argument, or from the git remote of the directory
 # the agent is standing in.
+# shellcheck disable=SC2120  # the optional argument is passed from other libs
 card_repo_here() {
   local dir=${1:-$PWD} url name
   url=$(git -C "$dir" remote get-url origin 2>/dev/null || true)

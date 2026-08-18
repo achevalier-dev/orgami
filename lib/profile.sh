@@ -9,6 +9,15 @@ PROFILE_EXCL=(--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=vendor
   --exclude-dir=venv --exclude-dir=target --exclude-dir=Pods
   --exclude=*.lock --exclude=*.sum --exclude=*.min.js --exclude=*.map)
 
+# Test paths: a route or URL declared in a test fixture is not something the
+# repo serves or reaches in production. Same shape as PROFILE_EXCL so the
+# grep -r calls that build the endpoints and calls lists can opt in.
+PROFILE_TEST_EXCL=(--exclude-dir=test --exclude-dir=tests --exclude-dir=spec
+  --exclude-dir=__tests__ --exclude-dir=e2e --exclude-dir=testdata
+  --exclude-dir=fixtures --exclude-dir=mocks
+  --exclude=*_test.go --exclude=*.test.ts --exclude=*.test.js
+  --exclude=*.spec.ts --exclude=*.spec.js)
+
 # Env vars that say nothing about the system.
 ENV_NOISE='^(NODE_ENV|ENV|ENVIRONMENT|PORT|HOST|DEBUG|LOG_LEVEL|TZ|HOME|PATH|USER|PWD|CI|npm_.*|NEXT_RUNTIME|VERCEL.*)$'
 
@@ -116,20 +125,20 @@ profile_routes() {
     # Only the server side: app/router/server verbs. An axios or fetch call
     # uses the same shape and would otherwise look like a route it serves.
     grep -rnoE "\b(app|router|server|routes)\.(get|post|put|patch|delete)\(\s*['\"\`][^'\"\`]{1,60}" "$src" \
-      --include='*.js' --include='*.ts' "${PROFILE_EXCL[@]}" 2>/dev/null |
+      --include='*.js' --include='*.ts' "${PROFILE_EXCL[@]}" "${PROFILE_TEST_EXCL[@]}" 2>/dev/null |
       sed -E "s|^$src/||; s/\b(app|router|server|routes)\.(get|post|put|patch|delete)\(\s*['\"\`]/ \U\2\E /" |
       grep -E ' (GET|POST|PUT|PATCH|DELETE) ' || true
 
     grep -rnoE "@(Get|Post|Put|Patch|Delete|Controller)\(\s*['\"][^'\"]{0,60}" "$src" \
-      --include='*.ts' "${PROFILE_EXCL[@]}" 2>/dev/null |
+      --include='*.ts' "${PROFILE_EXCL[@]}" "${PROFILE_TEST_EXCL[@]}" 2>/dev/null |
       sed -E "s|^$src/||; s/@([A-Za-z]+)\(\s*['\"]/ \U\1\E /" || true
 
     grep -rnoE "Parse\.Cloud\.(define|job)\(\s*['\"][^'\"]{1,60}" "$src" \
-      --include='*.js' --include='*.ts' "${PROFILE_EXCL[@]}" 2>/dev/null |
+      --include='*.js' --include='*.ts' "${PROFILE_EXCL[@]}" "${PROFILE_TEST_EXCL[@]}" 2>/dev/null |
       sed -E "s|^$src/||; s/Parse\.Cloud\.(define|job)\(\s*['\"]/ CLOUD /" || true
 
     grep -rnoE "@(app|router|blueprint)\.(route|get|post|put|patch|delete)\(\s*['\"][^'\"]{1,60}" "$src" \
-      --include='*.py' "${PROFILE_EXCL[@]}" 2>/dev/null |
+      --include='*.py' "${PROFILE_EXCL[@]}" "${PROFILE_TEST_EXCL[@]}" 2>/dev/null |
       sed -E "s|^$src/||; s/@[a-z_]+\.([a-z]+)\(\s*['\"]/ \U\1\E /" || true
 
     if [[ -d $src/pages/api ]]; then
@@ -158,7 +167,7 @@ profile_calls() {
     --include='*.js' --include='*.ts' --include='*.jsx' --include='*.tsx' \
     --include='*.py' --include='*.rb' --include='*.go' --include='*.env*' \
     --include='*.yml' --include='*.yaml' --include='*.json' \
-    "${PROFILE_EXCL[@]}" 2>/dev/null |
+    "${PROFILE_EXCL[@]}" "${PROFILE_TEST_EXCL[@]}" 2>/dev/null |
     sed -E 's|https?://||' | sort -u |
     grep -vE "$NOISE_DOMAINS" |
     grep -vE '^(localhost|127\.0\.0\.1|0\.0\.0\.0|example\.)' |

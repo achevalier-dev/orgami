@@ -6,7 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 SCRIPTS=(bin/orgami install.sh script/check)
 while IFS= read -r f; do SCRIPTS+=("$f"); done < <(
-  find lib hooks -name '*.sh' -type f | sort
+  find lib hooks test -name '*.sh' -type f | sort
 )
 
 syntax() {
@@ -64,11 +64,20 @@ stats() {
   echo "daily.jq: fixture day reads back correctly"
 }
 
+# profile_routes must keep test-file routes out of the endpoints list. The
+# assertion script builds a fixture tree with one real route and several
+# test-file routes and sources lib/profile.sh directly.
+profile() {
+  ./test/profile_routes_test.sh >/dev/null
+  echo "profile_routes: test paths excluded from endpoints list"
+}
+
 case ${1-} in
   --syntax-only) syntax ;;
   --lint-only) lint ;;
   --stats) stats ;;
-  "") syntax && lint && stats ;;
+  --profile) profile ;;
+  "") syntax && lint && stats && profile ;;
   *)
     echo "usage: script/check [--syntax-only | --lint-only | --stats]" >&2
     exit 2

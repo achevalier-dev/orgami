@@ -144,7 +144,10 @@ cmd_publish() {
   # Notes sync leaves this checkout on its own branch. Get back onto the default
   # one before writing anything, or the whole map lands on someone's note PR.
   local main
-  main=$(git -C "$work" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||')
+  # `|| true` matters: with set -e, an assignment whose command substitution
+  # fails ends the script here, which is why an empty docs repo used to make
+  # publish exit without a word.
+  main=$(git -C "$work" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||' || true)
   # An empty remote has no origin/HEAD, and rev-parse answers with the literal
   # "HEAD" — which is not a branch anyone can check out.
   [[ -n $main && $main != HEAD ]] ||
@@ -204,7 +207,10 @@ cmd_publish() {
     return
   fi
 
-  git -C "$work" add -A "$path" README.md
+  # docs_path can be empty, meaning the map is the repository rather than a
+  # directory inside one. git add wants a pathspec, and "" is not one.
+  git -C "$work" add -A "${path:-.}"
+  [[ -f $work/README.md ]] && git -C "$work" add README.md
   echo "changes to publish in $repo:$path"
   git -C "$work" --no-pager diff --cached --stat
 

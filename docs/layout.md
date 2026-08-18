@@ -12,6 +12,9 @@ lib/daily.jq           every number in the daily digest
 lib/daily.sh           one day: merged, opened, waiting, commits
 lib/scan.sh            repo scan -> map/graph.json
 lib/doc.sh             graph.json -> ARCHITECTURE.md
+lib/html.sh            graph.json -> map/graph.html, self-contained
+lib/depth.sh           the tree-sitter pass: venv, symbol lookup, graph merge
+lib/depth.py           the parser itself, one node-type table per language
 lib/view.sh            orgami query, and the legacy show/open entry points
 lib/tui.sh             the browser: tabs, rows, previews, key bindings
 lib/style.sh           one palette for everything orgami prints
@@ -48,6 +51,7 @@ Company state, never in this repo:
 ```
 ~/.orgami/
   config.json          default company, and an optional "orgs" picker filter
+  .venv/depth/         the tree-sitter grammars, created only by orgami depth
 ~/.orgami/<company>/
   config.json          org, docs repo, include/exclude, model
   cache/prs/           raw GraphQL responses, one file per week
@@ -58,7 +62,9 @@ Company state, never in this repo:
   reports/             one markdown recap per week
   reports/daily/       one digest per day, quiet days skipped
   notes/               one file per note, plus notes/archive/
-  map/graph.json       nodes and edges
+  map/graph.json       nodes and edges, every one tagged extracted or inferred
+  map/graph.html       the same graph, force-directed, in one openable file
+  map/depth.json       what each repo exports and imports, parsed (orgami depth)
   map/repos.json       one profile per repo
   map/coupling.json    which repos change together
   map/live.json        what is deployed, per provider, with the age of the reading

@@ -17,18 +17,64 @@ what is committed:
 | Shared contracts | distinctive environment variables read by more than one repo |
 
 The result is `map/graph.json` — a flat list of nodes and edges, nothing else.
-`ARCHITECTURE.md`, the mermaid diagrams and the terminal view are all rendered
-from it, so there is one source of truth and it diffs cleanly week to week.
+`ARCHITECTURE.md`, the mermaid diagrams, `graph.html` and the terminal view are
+all rendered from it, so there is one source of truth and it diffs cleanly week
+to week.
 
-**Every edge carries the `file:line` it came from.** Nothing in the graph is
-inferred by a model, and every claim can be opened and checked. `orgami doc
---narrate` adds one Claude-written summary paragraph on top — clearly separated
-from the facts underneath it.
+**Nothing in the graph is inferred by a model**, and `orgami doc --narrate` adds
+one Claude-written summary paragraph on top, clearly separated from the facts
+underneath it.
+
+## Extracted and inferred
+
+Most edges are *extracted*: a literal string sat in a committed file, and the
+edge carries the `file:line` you can open. A few are *inferred*: nothing
+declared them, they were resolved by matching one repo's reading against
+another's. Every edge says which it is, in a `confidence` field, and everything
+that renders the graph says it too.
+
+| Edge | Why |
+|---|---|
+| `calls` | inferred — a repo's literal URL matched a host exactly one other repo claims as its own |
+| `shares-config` | inferred — two repos read the same distinctive environment variable name |
+| `changes-with` | inferred — the two keep landing pull requests in the same week |
+| `imports` | either — extracted when the specifier names the organization, inferred when a bare name merely equals a repo name |
+| everything else | extracted — `uses`, `deploys-to`, `depends-on`, `reaches`, `references` all point at a file |
+
+Both kinds are worth having. Only one of them can be checked, and a map that
+does not say which is which is quietly lying about the difference. In
+`ARCHITECTURE.md` an inferred edge is a dotted arrow and carries *(inferred)* in
+the evidence list; in `orgami view` and `orgami query` it is prefixed `~`; in
+`graph.html` it is a dashed line you can switch off entirely.
+
+An edge written before the field existed still reads correctly: `calls`,
+`shares-config` and `changes-with` are only ever produced by resolution, so
+that is how they are reported.
 
 What the scan cannot see, it does not invent. Services wired together by runtime
 environment variables, a service mesh, or a shared gateway leave no trace in a
 repository, so a missing edge means "not found in committed configuration" and
 never "not connected".
+
+## The map as a picture
+
+`orgami doc` also writes `map/graph.html` — the same graph, force-directed, in
+one file you can open. It is generated from `graph.json` and nothing else, and
+it is self-contained: no CDN, no fonts, no network at all, so it works from a
+`file://` URL, inside a private repository, and on a plane.
+
+```bash
+orgami html     # just the page, without re-rendering the rest
+```
+
+Click a node and the panel shows both directions of every edge with the evidence
+it came from and whether that evidence is a line you can open. Type to filter,
+switch node kinds on and off, and switch inferred edges off when you only want
+what is written down. Layout is seeded from the node names, so the same map
+draws the same way on every machine — a screenshot in a pull request matches
+what the next person sees.
+
+`orgami publish` commits it beside `ARCHITECTURE.md`.
 
 ## The terminal view
 
@@ -74,7 +120,7 @@ orgami query 51.158.10.20
 Colour is on when a terminal is attached and off when the output is piped, so
 `orgami query x | grep` stays clean. `NO_COLOR` turns it off everywhere.
 
-## The four files beside the map
+## The files beside the map
 
 - **`CONVENTIONS.md`** — every `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md`
   committed anywhere in the org, with the `.github` repo's copy marked as the
@@ -92,10 +138,21 @@ Colour is on when a terminal is attached and off when the output is piped, so
   (`setup`, `deploy`, `rollback`, `incident`, `gotcha`, `oncall`) file a note
   straight into the matching section, so the page gets better every time
   somebody loses an afternoon and writes it down.
+- **`depth.json`** — the symbol layer, when `orgami depth` has run: what each
+  repo exports and where, and which packages it imports most.
 - **`coupling.json`** — which repos keep landing changes together, counted by
   same-day and same-week co-occurrence, bots excluded. Correlation, not
   dependency, and labelled as such — but it is the blast radius no static scan
   can see, and it sharpens every week the timer runs.
+
+## Deeper than the scan goes
+
+Everything above is pattern-matched, which is what keeps it cheap and portable.
+`orgami depth` parses instead — every file through a tree-sitter grammar — and
+answers the questions a pattern match cannot: which repo defines a symbol, what
+each repo actually exports, and which imports really are cross-repo references.
+It needs grammars installed, so it is optional and lives in its own file:
+[docs/depth.md](depth.md).
 
 ## What the scan will not tell you
 

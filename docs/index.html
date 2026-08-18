@@ -156,9 +156,28 @@ services, repo-to-repo references, frameworks, run and test commands, routes, sh
 environment contracts. The result is <code>map/graph.json</code>; the architecture
 document, the mermaid diagrams and the terminal view all render from it.</p>
 <pre><code>orgami view              # the map, the repos, the notes and the recaps, in one screen
-orgami query thruster    # one node and its edges, as text</code></pre>
+orgami query thruster    # one node and its edges, as text
+orgami html              # the same graph, force-directed, in one openable file</code></pre>
+<p>Every edge says whether it is <em>extracted</em> — a literal string in a committed file,
+with the <code>file:line</code> you can open — or <em>inferred</em>, resolved by matching
+one repo's reading against another's. Both are worth having; only one can be checked, and
+a map that does not draw that line is quietly lying about the difference.</p>
+<p><code>map/graph.html</code> is the map as a picture: filterable, clickable down to the
+evidence, and self-contained — no CDN, no network — so it opens from a <code>file://</code>
+URL and inside a private repository.</p>
 <p>Beside it sit the organization's gathered conventions, decisions mined from merged pull
 requests, runbooks per repo, and which repos keep changing together.</p>
+
+<h2>Which repo defines this</h2>
+<p>The scan is pattern-matching, which is what keeps it cheap enough to run over forty
+repositories. It also cannot tell you where <code>chargeCustomer</code> lives.
+<code>orgami depth</code> parses instead — every file through a tree-sitter grammar, so a
+definition is a definition node and the line is the parser's, not grep's.</p>
+<pre><code>orgami depth                          # 6,600 files in about two seconds
+orgami depth --symbol chargeCustomer  # which repo defines it, and where</code></pre>
+<p>It is the one part of orgami that needs more than Bash, <code>gh</code> and
+<code>jq</code>, so it installs its grammars into a virtualenv of its own, stays out of the
+weekly run, and the map is complete without it.</p>
 
 <h2>The digests</h2>
 <p>A day is not a week in miniature: most of a day's work has not merged yet. So

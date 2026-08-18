@@ -45,7 +45,9 @@ its recent merged pull requests, and links to any `AGENTS.md` it already has.
 | What teammates hit before you | `orgami notes`, `orgami notes --repo <repo>` |
 | How to run, ship or unbreak it | `orgami runbook <repo>`, or `~/.orgami/<c>/map/runbooks/<repo>.md` |
 | How anything ships, org-wide | `~/.orgami/<c>/map/RUNBOOK.md` |
-| Anything needing a filter | `~/.orgami/<c>/map/graph.json`, `repos.json`, `coupling.json` |
+| Which repo defines a symbol | `orgami depth --symbol <name>`, when `map/depth.json` exists |
+| The map as a picture | `~/.orgami/<c>/map/graph.html`, self-contained, opens anywhere |
+| Anything needing a filter | `~/.orgami/<c>/map/graph.json`, `repos.json`, `coupling.json`, `depth.json` |
 
 `CONVENTIONS.md` is the one to read before writing code: it gathers every
 `AGENTS.md`, `CLAUDE.md` and `CONTRIBUTING.md` committed in the org, with the
@@ -171,9 +173,10 @@ is the user's, not yours.
 ## Graph shape
 
 `graph.json` nodes are `{id, kind, name, meta}` where `kind` is `repo`, `host`,
-`tool`, `service` or `lang`. Edges are `{from, to, kind, evidence}`:
+`tool`, `service` or `lang`. Edges are `{from, to, kind, evidence, confidence}`:
 
 - `references` — a repo names another in a manifest or URL
+- `imports` — a parsed import statement in one repo names another (`orgami depth`)
 - `calls` — a repo hits a host that exactly one other repo declares as its own
 - `shares-config` — two repos read the same distinctive environment variable
 - `changes-with` — the two keep landing pull requests together
@@ -181,9 +184,22 @@ is the user's, not yours.
 
 ## Trusting it
 
-Every edge stores the `file:line`, URL or pull request it came from. Before
-acting on a host, a dependency or a claimed link, open that evidence and confirm.
-Say where a claim came from when you report it.
+`confidence` is the first thing to read on an edge, and the thing to repeat when
+you report what it says.
+
+- **`extracted`** — a literal string sat in a committed file. `evidence` is the
+  `file:line` you can open. Open it before acting on a host, a dependency or a
+  claimed link.
+- **`inferred`** — nothing declared this. It was resolved by matching one repo's
+  reading against another's, and `evidence` is what was matched, not a line.
+  `calls`, `shares-config` and `changes-with` are always inferred; `imports` is
+  inferred when a bare module name merely happens to equal a repo name.
+
+Report the difference. "`billing` imports `shared` — `src/pay.ts:8`" and
+"`billing` and `shared` keep changing in the same week" are different claims,
+and treating the second as the first is how a plan gets built on a coincidence.
+An edge with no `confidence` field predates it: `calls`, `shares-config` and
+`changes-with` are inferred, everything else extracted.
 
 Three limits worth stating out loud rather than papering over:
 
@@ -195,6 +211,24 @@ Three limits worth stating out loud rather than papering over:
   week; it is a hint about blast radius, not a dependency.
 - **`generated` in `graph.json` is when the scan last ran.** If it is more than
   a week old and the question is load-bearing, say the map is stale.
+
+## Symbols
+
+`map/depth.json` exists only where somebody has run `orgami depth`, which parses
+every checkout with tree-sitter. When it is there it answers what the graph
+cannot: which repo defines a name, and what each repo exports.
+
+```bash
+orgami depth --symbol chargeCustomer   # repo, kind, file:line
+orgami depth --stats                   # what has been parsed, per repo
+```
+
+Two things to hold on to. Only *exported* definitions are indexed, so "not
+found" means "nothing exports that name", not "it does not exist". And the file
+is as old as the last parse — it does not move when the code does, so check
+`generated` before leaning on it. Run `orgami depth` yourself only when asked
+for it in that turn: on a machine without the grammars it installs a virtualenv,
+which is not a side effect to cause uninvited.
 
 ## What is running, and what is only configured
 

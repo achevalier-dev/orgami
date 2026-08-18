@@ -21,8 +21,9 @@ It is built for the size of team where everyone touches everything: no architect
 holding the diagram, no wiki that survived the last three months, and a new hire
 or a coding agent expected to be useful on day one.
 
-- **A map you can check.** Every edge carries the `file:line` it came from, so
-  nothing in it is a model's guess. A missing edge means "not found in committed
+- **A map you can check.** Every edge carries the `file:line` it came from and
+  says whether that is a line you can open or a match orgami made, so nothing in
+  it is a model's guess. A missing edge means "not found in committed
   configuration", never "not connected".
 - **Digests you can trust the numbers in.** `jq` computes every figure; Claude
   only writes the prose, and is told the numbers rather than asked to count.
@@ -95,7 +96,7 @@ orgami publish         # commit both into the docs repo
 user timer, a launchd agent, or a cron line you paste anywhere else.
 
 `orgami help` is ten commands — the ones you use. `orgami help --all` is the
-rest: note review, MCP, per-repo runbooks, coupling, pruning.
+rest: note review, MCP, per-repo runbooks, coupling, symbols, pruning.
 
 ## The map
 
@@ -112,11 +113,50 @@ inferred by a model, and every claim can be opened and checked.
 ```bash
 orgami view              # the map, the repos, the notes and the recaps, in one screen
 orgami query thruster    # one node and its edges, as text
+orgami html              # the same graph, force-directed, in one openable file
 ```
 
 `orgami view` is four tabs over the same data — Map, Repos, Notes, Recaps —
 with the evidence in the preview pane, `ctrl-o` to open a repo on GitHub and
 `ctrl-n` to write a note against the one you are reading.
+
+### Extracted, or inferred
+
+Most edges are *extracted*: a literal string in a committed file, and the
+`file:line` is right there. A few are *inferred* — nothing declared them, they
+were resolved by matching one repo's reading against another's. `changes-with`
+is two repos landing pull requests in the same week. `shares-config` is two
+repos reading the same environment variable name. Useful, and not the same
+thing as evidence.
+
+So every edge says which it is. An inferred edge is a dotted arrow in
+`ARCHITECTURE.md`, a `~` in the terminal, a dashed line in `graph.html` that you
+can switch off entirely. A map that does not draw that line is quietly lying
+about the difference.
+
+`map/graph.html` is the map as a picture: force-directed, filterable, one
+self-contained file with no CDN and no network, so it opens from a `file://` URL
+and inside a private repo. Click any node and the panel gives you both
+directions of every edge with the evidence behind it.
+
+### Which repo defines this
+
+`orgami scan` is pattern-matching, which is what keeps it cheap enough to run
+over forty repositories. It also cannot tell you where `chargeCustomer` lives.
+`orgami depth` parses instead — every file through a tree-sitter grammar, so a
+definition is a definition node and the line is the parser's, not grep's.
+
+```bash
+orgami depth                          # 6,600 files in about two seconds
+orgami depth --symbol chargeCustomer  # which repo defines it, and where
+```
+
+It reads the checkouts the scan already made, adds `imports` edges where an
+import statement really does name a sibling repo, and gives every repo page a
+**Public surface** section. It is the one part of orgami that needs more than
+bash, `gh` and `jq` — Python and compiled grammars, installed into a virtualenv
+of its own on first use — so it is optional, never part of `orgami weekly`, and
+the map is complete without it. **[docs/depth.md](docs/depth.md)**.
 
 ### And what is actually running
 
@@ -270,6 +310,7 @@ that is the most useful report there is.
 
 - [Installing by hand](docs/install.md) — per-distribution dependencies, WSL, the plugin
 - [The map](docs/map.md) — what the scan looks for, and what it refuses to infer
+- [The symbol layer](docs/depth.md) — `orgami depth`, tree-sitter, and what it can answer
 - [What is running](docs/live.md) — `orgami live`, the providers, and why it is kept apart
 - [Other agents](docs/agents.md) — Cursor, MCP clients, `AGENTS.md`
 - [Team notes](docs/notes.md) — screening, review, pruning, `orgami join`

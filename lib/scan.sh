@@ -11,9 +11,20 @@ emit_node() {
     '{t:"node", id:$id, kind:$kind, name:$name, meta:$meta}' >>"$EMIT"
 }
 
+# emit_edge <from> <to> <kind> [evidence] [confidence]
+#
+# `confidence` is the same distinction graphify draws, and orgami needs it for
+# the same reason: most edges here are *extracted* — a literal string sat in a
+# committed file, and the evidence is the file:line you can open. A few are
+# *inferred* — nothing declared them, they were resolved by matching one repo's
+# reading against another's. Both are useful; only one is checkable, and a map
+# that does not say which is which is quietly lying about the difference.
+# Extracted is the default because every caller in this file matched a file.
 emit_edge() {
   jq -cn --arg from "$1" --arg to "$2" --arg kind "$3" --arg evidence "${4-}" \
-    '{t:"edge", from:$from, to:$to, kind:$kind, evidence:$evidence}' >>"$EMIT"
+    --arg confidence "${5:-extracted}" \
+    '{t:"edge", from:$from, to:$to, kind:$kind, evidence:$evidence,
+      confidence:$confidence}' >>"$EMIT"
 }
 
 # emit_tool <repo> <tool> <evidence-file>
@@ -335,6 +346,11 @@ cmd_scan() {
 }
 
 # Edges no single repo can declare: who calls whom, and who shares configuration.
+# Neither is written down anywhere — they are resolved by matching one repo's
+# literal URLs against the hosts another repo claims, and one repo's environment
+# names against another's. Both are marked `inferred`, and everything that reads
+# the graph says so.  A URL in `evidence` is the thing that was matched, not a
+# line anybody can open.
 scan_infer_links() {
   local graph=$1 profiles=$2 tmp
   tmp=$(mktemp)
@@ -354,7 +370,7 @@ scan_infer_links() {
         | select($callfreq[$h] <= 3)
         | select($owner[$h] != $r.name)
         | {from: ("repo:" + $r.name), to: ("repo:" + $owner[$h]), kind: "calls",
-           evidence: ("https://" + $h)}] as $calls
+           evidence: ("https://" + $h), confidence: "inferred"}] as $calls
      | ([$rs[] | {name, env: [.env[]
          | select(test("_(URL|ENDPOINT|API|HOST|BASE|BUCKET|QUEUE|TOPIC|DB|DATABASE)$"))
          | select($freq[.] < 6)]}]) as $e
@@ -362,7 +378,7 @@ scan_infer_links() {
         | ($a.env - ($a.env - $b.env)) as $shared
         | select(($shared | length) > 0)
         | {from: ("repo:" + $a.name), to: ("repo:" + $b.name), kind: "shares-config",
-           evidence: ($shared | sort | .[0:3] | join(", "))}] as $cfg
+           evidence: ($shared | sort | .[0:3] | join(", ")), confidence: "inferred"}] as $cfg
      | $g | .edges = ((.edges + $calls + $cfg) | unique)' \
     "$graph" "$profiles" >"$tmp"
   mv "$tmp" "$graph"

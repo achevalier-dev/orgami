@@ -48,7 +48,11 @@ cmd_coupling() {
   pairs=$(jq '.pairs | length' "$out")
   echo "$out  ($pairs pairs over $(jq -r .weeks_observed "$out") week(s) of history)"
 
-  # Only pairs seen in more than one week are stable enough for the graph.
+  # Only pairs seen in more than one week are stable enough for the graph, and
+  # even then the edge is `inferred`: two repos landing changes on the same day
+  # is a correlation counted out of merged pull requests, not a dependency
+  # anybody declared. There is no file:line to open, so the graph must not
+  # present it as though there were.
   local graph="$DIR/map/graph.json" tmp
   if [[ -f $graph ]]; then
     tmp=$(mktemp)
@@ -57,7 +61,8 @@ cmd_coupling() {
       | .edges = ((.edges + [$c.pairs[] | select(.weeks > 1 or .days > 1)
           | {from: ("repo:" + .a), to: ("repo:" + .b), kind: "changes-with",
              evidence: ((.weeks | tostring) + " weeks / " + (.days | tostring)
-                        + " days, " + (.authors | join(", ")))}])
+                        + " days, " + (.authors | join(", "))),
+             confidence: "inferred"}])
           | unique)' "$graph" "$out" >"$tmp"
     mv "$tmp" "$graph"
   fi

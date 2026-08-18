@@ -292,6 +292,8 @@ tui_card() {
     (if $w > 74 then 30 elif $w > 56 then 24 else 18 end) as $lw
     | (if $w - $lw - 4 > 12 then $w - $lw - 4 else 12 end) as $ew
     | def evidence($e): if ($e // "") == "" then "" else $d + ($e | elide($ew)) + $r end;
+    def conf: (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end));
+    def mark: if conf == "inferred" then $m + "~" + $r else " " end;
     . as $g
     | ($g.nodes[] | select(.id == "repo:" + $name)) as $n
     | (($prof[] | select(.name == $name)) // {}) as $pr
@@ -318,13 +320,14 @@ tui_card() {
          else ["  " + $d + ([($pr.commands.package_manager // ""), ($pr.commands.runtime // "")]
                             | map(select(. != "")) | join(" · ")) + $r] end)
 
-      + (($out + $in) | map(select(.kind == "references" or .kind == "calls" or .kind == "changes-with"))
+      + (($out + $in) | map(select(.kind | IN("references", "calls", "imports", "changes-with")))
          | if length == 0 then [] else
              [""] + [$m + $b + "TALKS TO" + $r]
              + (map(
                  (if .from == "repo:" + $name then "→ " + (.to | sub("^[a-z-]+:"; ""))
                   else "← " + (.from | sub("^[a-z-]+:"; "")) end) as $peer
-                 | "  " + ($peer | pad($lw)) + evidence(.evidence))
+                 | mark as $mk
+                 | $mk + ($peer | pad($lw)) + evidence(.evidence))
                 | unique | .[0:8])
            end)
 
@@ -379,6 +382,8 @@ tui_node() {
     | (if $w - $lw - 4 > 12 then $w - $lw - 4 else 12 end) as $ew
     | def elide($n): if length > $n then ("…" + .[(length - $n + 1):]) else . end;
     def evidence($e): if ($e // "") == "" then "" else $d + ($e | elide($ew)) + $r end;
+    def conf: (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end));
+    def mark: if conf == "inferred" then $m + "~" + $r else " " end;
     . as $g
     | ($g.nodes[] | select(.id == $id)) as $n
     | (($c[$n.kind]) // $d) as $col
@@ -394,14 +399,18 @@ tui_node() {
       + [rule]
       + ([$g.edges[] | select(.from == $id)] | group_by(.kind)
          | map([$m + $b + (.[0].kind | ascii_upcase) + $r]
-               + (map("  " + ((.to | sub("^[a-z-]+:"; "")) | pad($lw)) + evidence(.evidence))
+               + (map(" " + mark + ((.to | sub("^[a-z-]+:"; "")) | pad($lw)) + evidence(.evidence))
                   | unique | .[0:10]) + [""]) | add // [])
       + ([$g.edges[] | select(.to == $id)]
          | if length == 0 then [] else
              [$m + $b + "REFERENCED BY" + $r]
-             + (map("  " + ((.from | sub("^[a-z-]+:"; "")) | pad($lw)) + evidence(.evidence))
+             + (map(" " + mark + ((.from | sub("^[a-z-]+:"; "")) | pad($lw)) + evidence(.evidence))
                 | unique | .[0:12])
            end)
+      + (if [$g.edges[] | select((.from == $id or .to == $id))
+              | select(conf == "inferred")] | length > 0
+         then ["", $m + "~ inferred — resolved by matching, not read from a file" + $r]
+         else [] end)
       | .[]' "$g"
 }
 

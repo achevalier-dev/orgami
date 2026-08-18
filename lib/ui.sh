@@ -108,7 +108,7 @@ cmd_setup() {
 
   echo
   ui_title "Add an org to orgami"
-  ui_dim "One directory per org under $ORGAMI_HOME. Nothing leaves your machine until you publish."
+  ui_dim "Everything stays in $ORGAMI_HOME. Nothing leaves your machine until you publish."
   echo
 
   local org
@@ -288,6 +288,11 @@ cmd_menu() {
     [[ $(jq -r '.daily // false' "$dir/config.json") == true ]] &&
       daily_toggle="turn the daily digest off"
 
+    # One organization is the common case: the switcher only shows up once
+    # there is something to switch to.
+    local -a org_actions=("add an org")
+    [[ $(companies | wc -l) -gt 1 ]] && org_actions=("switch org" "add an org")
+
     action=$(gum choose \
       "browse the map" \
       "read the latest recap" \
@@ -296,8 +301,7 @@ cmd_menu() {
       "$daily_toggle" \
       "rebuild the map" \
       "publish to the docs repo" \
-      "switch org" \
-      "add an org" \
+      "${org_actions[@]}" \
       "quit") || return 0
 
     case $action in

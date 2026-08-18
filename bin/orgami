@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# orgami — weekly PR recaps and a live map of an organization's repositories.
-# One directory per company under ~/.orgami. No daemon, no database.
+# orgami — a map of an organization's repositories, its digests, and its memory.
+# One directory per organization under ~/.orgami. No daemon, no database.
 
 set -euo pipefail
 
@@ -20,63 +20,85 @@ need jq
 
 usage() {
   cat <<'EOF'
-orgami — weekly PR recaps and a map of an organization's repositories
+orgami — your organization's map, digests and memory, in your agent's context
 
-  orgami                                the menu
-  orgami init                           add a company, step by step
-  orgami init <company> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
-                        [--daily [--daily-at HH:MM]]
-  orgami use <company>                  make it the default
-  orgami list                           companies configured here
+  orgami                    the menu
+  orgami init               map your organization
+  orgami view               the map, the repos, the notes, the recaps
+  orgami note "…"           record what nobody should rediscover
+  orgami context [repo]     what an agent is handed before it edits
+  orgami daily              what the org did today
+  orgami report             this week's recap
+  orgami scan               rebuild the map from every repo
+  orgami publish            commit the map and the reports to the docs repo
+  orgami schedule           run it on a timer, daily and weekly
+
+  orgami help --all         every command, including the rare ones
+EOF
+}
+
+usage_all() {
+  cat <<'EOF'
+orgami — your organization's map, digests and memory, in your agent's context
+
+Setup
+  orgami init                           map an organization, step by step
+  orgami init <name> --org <github-org> [--docs-repo <url>] [--docs-path <dir>]
+  orgami join                           pick up an org a colleague already mapped
+  orgami join <name> --repo <url>       the same, without the questions
+  orgami schedule [--daily] [--off]     run on systemd, launchd or cron
   orgami claude-project [<url>]         the Claude project that reads the docs repo
-  orgami join                           pick an org someone already mapped
-  orgami join <company> --repo <url>    the same, without the questions
+  orgami version                        which version is installed
 
+The map
+  orgami scan [--only <repo>] [--depth N]
+                                        rebuild the map from every repo
+  orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
+  orgami view                           browse the map in the terminal
+  orgami query <repo|host|tool|service> print one node and its edges
+  orgami card <repo>                    the repo's page: stack, commands, links
+  orgami runbook [<repo>]               how to run, ship and unbreak it
+  orgami coupling                       which repos keep changing together
+
+Digests
+  orgami daily [--date D | --yesterday] [--stats-only]
+                                        what the org did in one day
+  orgami pull [--last N] [--since D --until D]
+                                        cache merged PRs for a week
+  orgami report [--week YYYY-Www] [--model M] [--stats-only]
+                                        write the weekly recap
+  orgami latest [--week W] [--raw]      read the newest recap
+  orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
+  orgami weekly                         pull, report, scan, doc, publish
+
+Team memory
   orgami note ["what you learned"]      record it for the whole team
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
+  orgami autonote [publish|drafts]      send notes out as written, or hold them
   orgami drafts                         keep or drop notes written for you
-  orgami autonote [publish|drafts]      send them to the team, or hold for review
-  orgami notes --check                  screen every note for anything shareable
-  orgami notes --rejected               notes the reviewer sent back, and why
-  orgami notes --pending                written here, not yet published
   orgami sync [--pr]                    exchange notes through the docs repo
   orgami sync --pull [--max-age MIN]    take what the team wrote, push nothing
   orgami autosync                       reconcile everything: pull, push, review, merge
   orgami review [--auto [--merge]]      read and merge the notes waiting for review
   orgami review --install-check         gate the docs repo with a CI screen
   orgami screen <file>...               screen note files — what CI runs
+  orgami notes --check | --rejected | --pending
   orgami stale [days]                   notes old enough to need a second look
   orgami prune --superseded | --id <id> archive notes that have had their day
 
-  orgami pull [--last N] [--since D --until D]
-                                        cache merged PRs for a week
-  orgami report [--week YYYY-Www] [--model M] [--stats-only]
-                                        write the weekly recap
-  orgami latest [--week W] [--raw]      read the newest recap
-  orgami daily [--date D | --yesterday] [--stats-only]
-                                        what the org did in one day
-  orgami scan [--only <repo>] [--depth N]
-                                        rebuild the map from every repo
-  orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
-  orgami coupling                       which repos keep changing together
-  orgami runbook [<repo>]               how to run, ship and unbreak it
-  orgami view                           browse the map in the terminal
-  orgami query <repo|host|tool|service> print one node and its edges
-  orgami card <repo>                    the repo's page: stack, commands, links
+Agents
   orgami context [repo]                 everything an agent needs before editing
-  orgami mcp                            serve the map over MCP, for any client
-  orgami mcp --config <client>          the config snippet for cursor, opencode, …
   orgami agents [--cursor] [--all]      write the context into AGENTS.md / rules
   orgami agents --refresh [--workspace P]  rewrite every block under a workspace
   orgami agents --cursor-hook [--user]  Cursor injects it at every session start
   orgami agents --git-hook              refresh the block on merge and checkout
-  orgami publish [--dry-run] [-y]       commit reports and map to the docs repo
-  orgami weekly                         pull, report, scan, doc, publish
-  orgami schedule [--off]               run weekly, on systemd or launchd
-  orgami schedule --daily [--at HH:MM]  and a digest each weekday morning
-  orgami version                        which version is installed
+  orgami mcp                            serve the map over MCP, for any client
+  orgami mcp --config <client>          the config snippet for cursor, opencode, …
 
-Any command takes the default company, or ORGAMI_COMPANY=<name> for one run.
+More than one organization
+  orgami use <name>                     make it the default
+  orgami list                           organizations configured here
+  ORGAMI_COMPANY=<name> orgami …        one command against another one
 EOF
 }
 
@@ -208,7 +230,7 @@ case $cmd in
     cmd_weekly "$@"
     ;;
   help | -h | --help)
-    usage
+    if [[ ${1:-} == --all || ${1:-} == -a ]]; then usage_all; else usage; fi
     ;;
   version | -v | --version)
     echo "orgami $(jq -r '.version // "unknown"' "$ROOT/manifest.json")"

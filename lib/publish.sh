@@ -145,9 +145,21 @@ cmd_publish() {
   # one before writing anything, or the whole map lands on someone's note PR.
   local main
   main=$(git -C "$work" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|origin/||')
-  [[ -n $main ]] || main=$(git -C "$work" symbolic-ref --short HEAD 2>/dev/null || echo main)
-  git -C "$work" checkout -B "$main" --quiet "origin/$main" ||
-    die "cannot get onto $main in the docs repo"
+  # An empty remote has no origin/HEAD, and rev-parse answers with the literal
+  # "HEAD" — which is not a branch anyone can check out.
+  [[ -n $main && $main != HEAD ]] ||
+    main=$(git -C "$work" symbolic-ref --short HEAD 2>/dev/null || echo main)
+  [[ -n $main && $main != HEAD ]] || main=main
+  # A docs repo someone just created has no commits, so there is no
+  # origin/<main> to start from — begin the branch here instead of refusing.
+  if git -C "$work" rev-parse --verify --quiet "origin/$main" >/dev/null; then
+    git -C "$work" checkout -B "$main" --quiet "origin/$main" ||
+      die "cannot get onto $main in the docs repo"
+  else
+    git -C "$work" checkout -B "$main" --quiet ||
+      die "cannot start $main in the docs repo"
+    log "$repo is empty — this publish will be its first commit"
+  fi
 
   local dest="$work/$path"
   mkdir -p "$dest/reports"
@@ -157,7 +169,7 @@ cmd_publish() {
     cp -f "$DIR/reports/daily/"*.md "$dest/reports/daily/" 2>/dev/null || true
   fi
   local f
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json repos.json coupling.json; do
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json graph.html repos.json coupling.json depth.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
 

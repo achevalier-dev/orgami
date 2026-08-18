@@ -48,12 +48,16 @@ card_render() {
                 + [""]
            end)
 
-      + ([$g.edges[] | select(.from == $id and (.kind | IN("calls", "references", "shares-config")))
-          | "- " + (if .kind == "calls" then "calls" elif .kind == "references" then "references" else "shares config with" end)
-            + " **" + (.to | sub("^repo:"; "")) + "** — `" + .evidence + "`"]
-         + [$g.edges[] | select(.to == $id and (.kind | IN("calls", "references", "shares-config")))
-            | "- " + (if .kind == "calls" then "called by" elif .kind == "references" then "referenced by" else "shares config with" end)
-              + " **" + (.from | sub("^repo:"; "")) + "** — `" + .evidence + "`"]
+      + ([$g.edges[] | select(.from == $id and (.kind | IN("calls", "references", "imports", "shares-config")))
+          | "- " + (if .kind == "calls" then "calls" elif .kind == "references" then "references"
+                elif .kind == "imports" then "imports from" else "shares config with" end)
+            + " **" + (.to | sub("^repo:"; "")) + "** — `" + .evidence + "`"
+            + (if (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end)) == "inferred" then " *(inferred)*" else "" end)]
+         + [$g.edges[] | select(.to == $id and (.kind | IN("calls", "references", "imports", "shares-config")))
+            | "- " + (if .kind == "calls" then "called by" elif .kind == "references" then "referenced by"
+                elif .kind == "imports" then "imported by" else "shares config with" end)
+              + " **" + (.from | sub("^repo:"; "")) + "** — `" + .evidence + "`"
+              + (if (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end)) == "inferred" then " *(inferred)*" else "" end)]
          | unique
          | if length == 0 then
              ["## Talks to", "", "Nothing links this repo to another in committed configuration. That is not proof it stands alone — runtime wiring leaves no trace here.", ""]
@@ -96,6 +100,11 @@ card_render() {
                 + [""]
            end)
       | .[]' "$g"
+
+  if [[ -f $DIR/map/depth.json ]]; then
+    source "$ROOT/lib/depth.sh"
+    depth_section "$repo"
+  fi
 
   if [[ -f $DIR/map/live.json ]]; then
     source "$ROOT/lib/live.sh"
@@ -164,10 +173,11 @@ context_overview() {
   echo
 
   local links
-  links=$(jq -r '.edges[] | select(.kind == "calls" or .kind == "references")
+  links=$(jq -r '.edges[] | select(.kind | IN("calls", "references", "imports"))
     | "- **" + (.from | sub("^repo:"; "")) + "** "
-      + (if .kind == "calls" then "calls" else "references" end)
-      + " **" + (.to | sub("^repo:"; "")) + "** — `" + .evidence + "`"' "$g" | sort -u)
+      + (if .kind == "calls" then "calls" elif .kind == "imports" then "imports from" else "references" end)
+      + " **" + (.to | sub("^repo:"; "")) + "** — `" + .evidence + "`"
+      + (if (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end)) == "inferred" then " *(inferred)*" else "" end)' "$g" | sort -u)
   if [[ -n $links ]]; then
     echo "## How the repos connect"
     echo
@@ -227,10 +237,11 @@ card_brief() {
          | if ($s | length) == 0 then []
            else ($s | map("  " + .key + ": " + .value)) + [""] end)
       + ([$g.edges[] | select((.from == $id or .to == $id)
-            and (.kind | IN("calls", "references", "shares-config", "changes-with")))
+            and (.kind | IN("calls", "references", "imports", "shares-config", "changes-with")))
+          | ((if (.confidence // (if (.kind | IN("calls", "shares-config", "changes-with")) then "inferred" else "extracted" end)) == "inferred" then " (inferred)" else "" end)) as $c
           | if .from == $id
-            then "  " + .kind + " -> " + (.to | sub("^repo:"; ""))
-            else "  " + .kind + " <- " + (.from | sub("^repo:"; "")) end]
+            then "  " + .kind + " -> " + (.to | sub("^repo:"; "")) + $c
+            else "  " + .kind + " <- " + (.from | sub("^repo:"; "")) + $c end]
          | unique | .[0:8]
          | if length == 0 then [] else ["linked repos:"] + . + [""] end)
       | .[]' "$g"
@@ -248,6 +259,10 @@ cmd_brief() {
   echo "orgami — $COMPANY ($ORG), map from $(jq -r '.generated | .[0:10]' "$DIR/map/graph.json")"
   echo
   card_brief "$want" || return 0
+  if [[ -f $DIR/map/depth.json ]]; then
+    source "$ROOT/lib/depth.sh"
+    depth_brief "$want"
+  fi
   if [[ -f $DIR/map/live.json ]]; then
     source "$ROOT/lib/live.sh"
     live_brief "$want"

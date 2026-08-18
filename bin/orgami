@@ -55,11 +55,16 @@ The map
   orgami scan [--only <repo>] [--depth N]
                                         rebuild the map from every repo
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
+  orgami html                           the map as one page you can open
   orgami view                           browse the map in the terminal
   orgami query <repo|host|tool|service> print one node and its edges
   orgami card <repo>                    the repo's page: stack, commands, links
   orgami runbook [<repo>]               how to run, ship and unbreak it
   orgami coupling                       which repos keep changing together
+  orgami depth [--only <repo>] [--jobs N] [--setup] [--python <bin>]
+                                        parse every checkout with tree-sitter
+  orgami depth --symbol <name>          which repo defines it, and where
+  orgami depth --stats                  what has been parsed, per repo
   orgami live [--provider vercel,fly,aws] [--json]
                                         what is deployed right now, per provider
 
@@ -158,6 +163,10 @@ case $cmd in
     source "$ROOT/lib/doc.sh"
     cmd_doc "$@"
     ;;
+  html)
+    source "$ROOT/lib/html.sh"
+    cmd_html "$@"
+    ;;
   view | query | show | open)
     source "$ROOT/lib/style.sh"
     source "$ROOT/lib/tui.sh"
@@ -172,6 +181,10 @@ case $cmd in
   coupling)
     source "$ROOT/lib/coupling.sh"
     cmd_coupling "$@"
+    ;;
+  depth)
+    source "$ROOT/lib/depth.sh"
+    cmd_depth "$@"
     ;;
   live)
     source "$ROOT/lib/live.sh"

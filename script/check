@@ -81,15 +81,34 @@ live() {
   echo "live/aws: every resource enumerated, only named ones attributed"
 }
 
+# `orgami depth` may only call an edge extracted when the import resolves on its
+# own. Runs against a hand-written depth.json — no tree-sitter, no checkouts.
+depth() {
+  ./test/depth_match_test.sh >/dev/null
+  echo "depth: imports resolved to a repo only when the specifier says so"
+  # The language table against real grammars, when they are installed. Skips
+  # itself otherwise, and says so.
+  ./test/depth_parse_test.sh
+}
+
+# map/graph.html must open with no network and say what graph.json says.
+html() {
+  ./test/html_render_test.sh >/dev/null
+  echo "html: self-contained, and every edge keeps its confidence"
+}
+
 case ${1-} in
   --syntax-only) syntax ;;
   --lint-only) lint ;;
   --stats) stats ;;
   --profile) profile ;;
   --live) live ;;
-  "") syntax && lint && stats && profile && live ;;
+  --depth) depth ;;
+  --html) html ;;
+  "") syntax && lint && stats && profile && live && depth && html ;;
   *)
-    echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile | --live]" >&2
+    echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile |" >&2
+    echo "                     --live | --depth | --html]" >&2
     exit 2
     ;;
 esac

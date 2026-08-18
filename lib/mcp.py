@@ -89,7 +89,10 @@ TOOLS = [
         "description": (
             "One node of the map and both directions of its edges — a repository, a "
             "host, a deployment tool such as kamal or terraform, or a backing service "
-            "such as postgres. Every edge carries the file:line it was found on."
+            "such as postgres. Most edges are extracted and carry the file:line they "
+            "were found on. An edge marked ~ is inferred: nothing declared it, it was "
+            "resolved by matching one repo's reading against another's, and there is "
+            "no line to open. Say which kind you are relying on."
         ),
         "inputSchema": {
             "type": "object",
@@ -119,6 +122,22 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {"repo": {"type": "string"}},
+        },
+    },
+    {
+        "name": "orgami_symbol",
+        "description": (
+            "Which repository defines a name, and at which file and line — parsed "
+            "with tree-sitter, not grepped. Ask this before assuming where a "
+            "function, class or type lives, and when the same name turns up in more "
+            "than one repository. Only exported definitions are indexed, so no "
+            "result means nothing exports that name, not that it does not exist. "
+            "Empty until somebody has run `orgami depth`."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
         },
     },
     {
@@ -293,6 +312,11 @@ def call(name, args):
         return read_file("map", "DECISIONS.md")
     if name == "orgami_live":
         return live(args.get("repo"))
+    if name == "orgami_symbol":
+        want = (args.get("name") or "").strip()
+        if not want:
+            return "Refused: name is required."
+        return run(["depth", "--symbol", want])
     if name == "orgami_conventions":
         return read_file("map", "CONVENTIONS.md")
     if name == "orgami_search":

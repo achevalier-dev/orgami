@@ -77,6 +77,8 @@ profile() {
 live() {
   ./test/live_match_test.sh >/dev/null
   echo "live: deployments matched only on evidence, and dated"
+  ./test/live_aws_test.sh >/dev/null
+  echo "live/aws: every resource enumerated, only named ones attributed"
 }
 
 case ${1-} in

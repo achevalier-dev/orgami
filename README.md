@@ -139,9 +139,11 @@ leaves it on your machine unless you ask for it.
 **Nothing is attributed by resemblance.** `api-staging` is not assigned to
 `api`. A deployment is tied to a repo only when the map already has a
 `deploys-to` edge to that host, when the provider itself names the GitHub
-repository, or when an AWS resource is tagged with one. Everything else is
-reported as unmatched — which is usually the interesting part. Names and
-endpoints only; no environment values, ever.
+repository, or when a resource is tagged with one. Everything else is reported
+as unmatched, with its state and hostname — which is usually the interesting
+part: on the first real account this ran against, all 30 running things were
+unaccounted for, including seven preview environments nobody had cleaned up.
+Names and endpoints only; no environment values, ever.
 **[docs/live.md](docs/live.md)**.
 
 Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),

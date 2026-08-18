@@ -53,9 +53,15 @@ make the link, and each row records which one did:
 | `link` | the provider itself says which GitHub repository it builds from, and the organization matches |
 | `tag` | an AWS resource carries a tag naming the repository |
 
-Anything else lands in `unmatched`, is counted in the summary line, and is left
-out of every rendered page. An unattributed app is a fact worth seeing — it is
-often a service nobody remembers owning.
+Case is not part of the test — GitHub treats `WinIt-backend` and `winit-backend`
+as the same name — but nothing less than the whole name is: `winit-backend-dev`
+is not `WinIt-backend`, and `scraphome-api` is not `scraphome`.
+
+Anything else lands in `unmatched`, with its state and hostname, and is counted
+in the summary line. An unattributed service is a fact worth seeing — it is
+usually either a preview environment nobody cleaned up or a service nobody
+remembers owning. When nothing at all can be attributed, `orgami context` for
+the org says how many things are running unaccounted for.
 
 ## The providers
 
@@ -80,15 +86,26 @@ aliases, and the state and time of the production deployment.
 Needs the `aws` CLI already authenticated, and a region: `aws_region` in the
 config, `AWS_REGION`, or the one in your AWS profile.
 
-Nothing in an AWS account records which repository built a resource, so this
-reader only reports what carries a tag that says so — `Repository`, `repo`,
-`Repo`, `github:repo` or `GitHubRepo`. One `resourcegroupstaggingapi` call finds
-the candidates; state is then read per match, so the number of calls is the
-number of things actually tied to a repo. Untagged resources are counted and
-reported, never guessed at.
+It reads Lambda functions, ECS services and Elastic Beanstalk environments, and
+it enumerates them from the services themselves rather than from the tagging
+API. That matters: `resourcegroupstaggingapi get-resources` only returns
+resources carrying at least one tag, and on a real account most of what is
+running carries none. One organization tested here had 3 of its 16 Lambdas and
+0 of its 11 ECS services visible that way — a reader built on tags alone would
+have reported an almost empty account as if that were the answer.
 
-If your account has no such convention, this is the argument for starting one —
-a single tag makes the whole account legible to everyone's agent.
+Tags are still read, once, and used for attribution where they exist. Beanstalk
+is the one AWS service that hands back a hostname, so its environments can also
+match a `deploys-to` edge the scan already found.
+
+Nothing in an AWS account records which repository built a resource. Expect the
+first run to attribute little or nothing and to list a great deal — that list is
+the finding. Tagging what you deploy with `Repository=<repo>` is what turns it
+into attribution, and it is worth doing once:
+
+```
+Repository = winit-backend
+```
 
 ## Where it shows up
 

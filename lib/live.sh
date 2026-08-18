@@ -28,6 +28,16 @@ live_repo_exists() {
   jq -e --arg r "$1" 'any(.[]; .name == $r)' "$DIR/map/repos.json" >/dev/null 2>&1
 }
 
+# The repo of exactly this name, whatever its capitalisation — GitHub treats
+# `WinIt-backend` and `winit-backend` as the same name, so a provider that
+# lowercased it has still named the repository. Anything less than the whole
+# name is not a match: `winit-backend-dev` is not `WinIt-backend`.
+live_repo_named() {
+  jq -re --arg n "$1" '[.[] | select((.name | ascii_downcase) == ($n | ascii_downcase)) | .name]
+                       | if length == 1 then .[0] else empty end' \
+    "$DIR/map/repos.json" 2>/dev/null
+}
+
 # The repo the map already says deploys to this host, if exactly one does.
 live_repo_for_host() {
   local host=$1 g="$DIR/map/graph.json"
@@ -72,7 +82,10 @@ live_fly() {
     match=""
     repo=$(live_repo_for_host "$host" 2>/dev/null || true)
     [[ -n $repo ]] && match="map"
-    if [[ -z $repo ]] && live_repo_exists "$name"; then repo=$name; match="name"; fi
+    if [[ -z $repo ]]; then
+      repo=$(live_repo_named "$name" || true)
+      [[ -n $repo ]] && match="name"
+    fi
 
     jq -cn --arg provider fly --arg name "$name" --arg repo "$repo" \
       --arg match "$match" --arg state "$status" --arg url "$host" \
@@ -125,7 +138,10 @@ live_vercel() {
       [[ -n $name ]] || continue
       repo=""; match=""
       if [[ -n $linked ]] && live_repo_exists "$linked"; then repo=$linked; match="link"; fi
-      if [[ -z $repo ]] && live_repo_exists "$name"; then repo=$name; match="name"; fi
+      if [[ -z $repo ]]; then
+        repo=$(live_repo_named "$name" || true)
+        [[ -n $repo ]] && match="name"
+      fi
 
       jq -cn --arg provider vercel --arg name "$name" --arg repo "$repo" \
         --arg match "$match" --arg state "$state" --arg updated "$updated" \
@@ -158,11 +174,18 @@ live_vercel() {
   done
 }
 
-# AWS. Nothing in an AWS account says which repository built it, so this only
-# reports resources carrying a tag that names one. Everything else is counted
-# and left alone: guessing that `api-prod` belongs to `api` is how a map starts
-# lying. One tagging call finds the candidates; state is then read per match,
-# so the number of calls is the number of things actually tied to a repo.
+# AWS. Nothing in an AWS account records which repository built a resource, so
+# this reader enumerates what is running and then attributes only what something
+# names: a tag, a host the map already points at, or a whole repo name.
+#
+# It does not go through the tagging API alone. That API returns only resources
+# carrying at least one tag, which on a real account means most of what is
+# running is invisible to it — one organization here had three of sixteen
+# Lambdas and none of eleven ECS services. So the inventory comes from the
+# services themselves, and tags are read once and applied on top.
+#
+# An unattributed row is a finding, not a failure: something is running that
+# nothing in the organization's committed configuration accounts for.
 live_aws() {
   command -v aws >/dev/null || { live_err aws "the aws CLI is not on PATH"; return 0; }
 
@@ -175,69 +198,122 @@ live_aws() {
     return 0
   }
 
-  local ident
+  local ident account
   ident=$(aws sts get-caller-identity --output json --region "$region" 2>&1) || {
     live_err aws "$(head -1 <<<"$ident")"
     return 0
   }
-  local account
-  account=$(jq -r '.Account // "unknown"' <<<"$ident")
+  account="$(jq -r '.Account // "unknown"' <<<"$ident") ($region)"
 
-  local out
-  out=$(aws resourcegroupstaggingapi get-resources \
-    --region "$region" --output json \
-    --resource-type-filters ecs:service lambda:function 2>&1) || {
-    live_err aws "$(head -1 <<<"$out")"
-    return 0
-  }
+  # Tags first, so every reader below can ask "does anything name a repo here".
+  # A failure is not fatal: it costs attribution, not the inventory.
+  local tagfile
+  tagfile=$(mktemp)
+  aws resourcegroupstaggingapi get-resources --region "$region" --output json \
+    2>/dev/null |
+    jq -r --arg keys "$LIVE_REPO_TAGS" '
+      .ResourceTagMappingList[]?
+      | [.ResourceARN,
+         ([.Tags[]? | select(.Key | test("^(" + $keys + ")$")) | .Value] | first // "")]
+      | select(.[1] != "") | @tsv' >"$tagfile" 2>/dev/null || true
 
-  local arn repo kind name cluster state updated skipped=0
-  while IFS=$'\t' read -r arn repo; do
-    [[ -n $arn ]] || continue
-    if [[ -z $repo ]] || ! live_repo_exists "$repo"; then
-      skipped=$((skipped + 1))
-      continue
+  live_aws_tag() { awk -F'\t' -v a="$1" '$1 == a {print $2; exit}' "$tagfile"; }
+
+  # One row, attributed by whichever rule fires first.
+  # $1 name  $2 kind  $3 arn  $4 state  $5 updated  $6 host
+  live_aws_row() {
+    local name=$1 kind=$2 arn=$3 state=$4 updated=$5 host=${6:-}
+    local repo match tagged
+    repo=""; match=""
+    tagged=$(live_aws_tag "$arn")
+    if [[ -n $tagged ]] && live_repo_exists "$tagged"; then repo=$tagged; match="tag"; fi
+    if [[ -z $repo && -n $host ]]; then
+      repo=$(live_repo_for_host "$host" 2>/dev/null || true)
+      [[ -n $repo ]] && match="map"
+    fi
+    if [[ -z $repo ]]; then
+      repo=$(live_repo_named "$name" || true)
+      [[ -n $repo ]] && match="name"
     fi
 
-    name=${arn##*/}
-    state=""; updated=""
-    case $arn in
-      *:lambda:*)
-        kind=lambda
-        local conf
-        conf=$(aws lambda get-function-configuration --region "$region" \
-          --function-name "$name" --output text --query '[State,LastModified]' 2>/dev/null || true)
-        state=$(cut -f1 <<<"$conf")
-        updated=$(cut -f2 <<<"$conf")
-        ;;
-      *:ecs:*)
-        kind=ecs
-        # arn:aws:ecs:<region>:<acct>:service/<cluster>/<service>
-        cluster=$(sed -E 's|.*:service/([^/]+)/.*|\1|' <<<"$arn")
-        state=$(aws ecs describe-services --region "$region" \
-          --cluster "$cluster" --services "$name" --output text \
-          --query 'services[0].[status,runningCount,desiredCount]' 2>/dev/null |
-          awk '{print $1 " " $2 "/" $3}' || true)
-        ;;
-      *) kind=resource ;;
-    esac
-
     jq -cn --arg provider aws --arg name "$name" --arg repo "$repo" \
-      --arg state "${state//$'\t'/ }" --arg updated "$updated" \
-      --arg account "$account ($region)" --arg source "aws:$kind/$name" \
-      '{provider:$provider, name:$name, repo:$repo, match:"tag",
-        state:(if $state == "" then null else ($state | ltrimstr(" ") | rtrimstr(" ")) end),
-        urls:[], account:$account,
+      --arg match "$match" --arg state "$state" --arg updated "$updated" \
+      --arg host "$host" --arg account "$account" --arg source "aws:$kind/$name" \
+      '{provider:$provider, name:$name,
+        repo:(if $repo == "" then null else $repo end),
+        match:(if $match == "" then null else $match end),
+        state:(if $state == "" then null else $state end),
+        urls:(if $host == "" then [] else [$host] end),
+        account:$account,
         updated:(if $updated == "" then null else $updated end),
         source:$source}' | live_row
-  done < <(jq -r --arg keys "$LIVE_REPO_TAGS" '
-    .ResourceTagMappingList[]
-    | [.ResourceARN,
-       ([.Tags[] | select(.Key | test("^(" + $keys + ")$")) | .Value] | first // "")]
-    | @tsv' <<<"$out")
+  }
 
-  [[ $skipped -gt 0 ]] &&
-    log "aws: $skipped resource(s) carry no tag naming a repo in the map — left out"
+  local n u arn a cluster
+  local read_any=0
+
+  # Lambda: name, last modified, and the state the list call already carries.
+  local fns
+  if fns=$(aws lambda list-functions --region "$region" --output json 2>&1); then
+    read_any=1
+    while IFS=$'\t' read -r n u arn; do
+      [[ -n $n ]] || continue
+      live_aws_row "$n" lambda "$arn" "" "$u"
+    done < <(jq -r '.Functions[]? | [.FunctionName, (.LastModified // ""), .FunctionArn] | @tsv' <<<"$fns")
+  else
+    live_err aws "lambda: $(head -1 <<<"$fns")"
+  fi
+
+  # ECS: the services, not the clusters. A cluster with no service is a batch
+  # queue, not something answering requests.
+  local clusters svcs desc
+  if clusters=$(aws ecs list-clusters --region "$region" --output json 2>&1); then
+    read_any=1
+    while read -r cluster; do
+      [[ -n $cluster ]] || continue
+      svcs=$(aws ecs list-services --region "$region" --cluster "$cluster" \
+        --output json 2>/dev/null) || continue
+      local -a arns=() batch=()
+      while read -r a; do [[ -n $a ]] && arns+=("$a"); done < <(jq -r '.serviceArns[]?' <<<"$svcs")
+      [[ ${#arns[@]} -gt 0 ]] || continue
+
+      # describe-services takes ten at a time. Every service is described, in
+      # batches — a cluster with eleven of them does not quietly lose one.
+      local i
+      for ((i = 0; i < ${#arns[@]}; i += 10)); do
+        batch=("${arns[@]:i:10}")
+        desc=$(aws ecs describe-services --region "$region" --cluster "$cluster" \
+          --services "${batch[@]}" --output json 2>/dev/null) || continue
+        while IFS=$'\t' read -r n u arn; do
+          [[ -n $n ]] || continue
+          live_aws_row "$n" "ecs/${cluster##*/}" "$arn" "$u" ""
+        done < <(jq -r '.services[]? | [.serviceName,
+            ((.status // "") + " " + ((.runningCount // 0) | tostring) + "/" + ((.desiredCount // 0) | tostring)),
+            .serviceArn] | @tsv' <<<"$desc")
+      done
+    done < <(jq -r '.clusterArns[]?' <<<"$clusters")
+  else
+    live_err aws "ecs: $(head -1 <<<"$clusters")"
+  fi
+
+  # Elastic Beanstalk: the one AWS service that hands back a hostname, which
+  # means the map's own deploys-to edges can match it.
+  local envs
+  if envs=$(aws elasticbeanstalk describe-environments --region "$region" \
+    --output json 2>/dev/null); then
+    read_any=1
+    local host
+    while IFS=$'\t' read -r n u arn host; do
+      [[ -n $n ]] || continue
+      live_aws_row "$n" beanstalk "$arn" "$u" "" "$host"
+    done < <(jq -r '.Environments[]? | [.EnvironmentName,
+        ((.Status // "") + " " + (.Health // "")), (.EnvironmentArn // ""),
+        (.CNAME // "")] | @tsv' <<<"$envs")
+  fi
+
+  unset -f live_aws_tag live_aws_row
+  rm -f "$tagfile"
+  [[ $read_any == 1 ]] || live_err aws "nothing could be listed in $region"
   return 0
 }
 
@@ -311,7 +387,7 @@ cmd_live() {
     --slurpfile errors "$LIVE_ERRORS" \
     '{generated: $at, generated_epoch: $epoch, providers: $providers,
       deployments: ([.[] | select(.repo != null)] | sort_by(.provider, .name)),
-      unmatched: ([.[] | select(.repo == null) | {provider, name, source}] | sort_by(.provider, .name)),
+      unmatched: ([.[] | select(.repo == null) | {provider, name, state, urls, source}] | sort_by(.provider, .name)),
       errors: $errors}' \
     "$LIVE_ROWS" >"$out"
 
@@ -332,11 +408,29 @@ cmd_live() {
       + (if .state then "  [" + .state + "]" else "" end)
       + (if (.urls | length) > 0 then "  " + (.urls | join(" ")) else "" end)' "$out"
   [[ $matched -gt 0 ]] && echo
-  jq -r '.unmatched[] | "  (no repo) " + .provider + " " + .name' "$out"
-  [[ $unmatched -gt 0 ]] && echo
+
+  # The unmatched list is the interesting half on most accounts, but it is also
+  # the long one. First ten, then the count — never a silent truncation.
+  if [[ $unmatched -gt 0 ]]; then
+    jq -r '.unmatched[0:10][] | "  (nothing ties this to a repo) " + .provider + " " + .name
+      + (if .state then "  [" + .state + "]" else "" end)
+      + (if (.urls | length) > 0 then "  " + (.urls | join(" ")) else "" end)' "$out"
+    [[ $unmatched -gt 10 ]] && echo "  … and $((unmatched - 10)) more, all in $out"
+    echo
+  fi
 
   echo "$out  ($matched tied to a repo, $unmatched not, $errs provider error(s))"
   [[ $errs -gt 0 ]] && jq -r '.errors[] | "  " + .provider + ": " + .message' "$out"
+
+  # Nothing attributed is not a bug in the reading — it means the account and
+  # the repositories are named by different conventions, which is worth saying
+  # once rather than leaving someone to conclude the command is broken.
+  if [[ $matched == 0 && $unmatched -gt 0 ]]; then
+    echo
+    echo "Nothing here names a repository. A deployment is only tied to one by a tag"
+    echo "(Repository=<repo>), by the provider naming the GitHub repo itself, or by"
+    echo "carrying the whole repo name — see docs/live.md."
+  fi
   return 0
 }
 
@@ -409,8 +503,22 @@ live_brief() {
 live_overview() {
   local f="$DIR/map/live.json" age
   [[ -f $f ]] || return 0
-  jq -e '(.deployments | length) > 0' "$f" >/dev/null 2>&1 || return 0
   age=$(live_age_days || echo "?")
+
+  # Nothing attributed, but things running: that is still worth one line. A
+  # service nobody can name is the one that surprises somebody at 2am.
+  if ! jq -e '(.deployments | length) > 0' "$f" >/dev/null 2>&1; then
+    local orphans
+    orphans=$(jq '.unmatched | length' "$f" 2>/dev/null || echo 0)
+    [[ ${orphans:-0} -gt 0 ]] || return 0
+    echo "## What is actually running"
+    echo
+    echo "$orphans things are running that nothing in this map accounts for, read"
+    echo "$(live_age_phrase "$age") with \`orgami live\`. None of them carries a repository"
+    echo "name or tag, so none can be attributed — the list is in \`map/live.json\`."
+    echo
+    return 0
+  fi
 
   echo "## What is actually running"
   echo

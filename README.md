@@ -1,5 +1,10 @@
 # orgami
 
+[![ci](https://github.com/achevalier-dev/orgami/actions/workflows/ci.yml/badge.svg)](https://github.com/achevalier-dev/orgami/actions/workflows/ci.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![shell: bash](https://img.shields.io/badge/shell-bash-4EAA25.svg)](https://www.gnu.org/software/bash/)
+[![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757.svg)](docs/agents.md)
+
 **Ten repos, eight people, and nobody whose job it is to write the docs.**
 orgami maps every repository in your GitHub organization — what each one is, how
 to run it, what it talks to, where it deploys — digests what the team shipped

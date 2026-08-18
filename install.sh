@@ -82,7 +82,7 @@ case "$(uname -s)" in
       echo "installed $UNIT_DIR/orgami-weekly@.{service,timer}"
     fi
     ;;
-  Darwin) echo "macOS: 'orgami schedule' installs a launchd agent per company" ;;
+  Darwin) echo "macOS: 'orgami schedule' installs a launchd agent" ;;
   *) echo "no systemd or launchd here — 'orgami schedule' prints a cron line" ;;
 esac
 
@@ -94,6 +94,6 @@ esac
 cat <<'EOF'
 
 next:
-  orgami init    add your first company, step by step
+  orgami init    map your organization, step by step
   orgami         the menu
 EOF

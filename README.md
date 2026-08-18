@@ -1,9 +1,10 @@
 # orgami
 
-**Know a client's organization before you touch its code.** orgami maps every
-repo in a GitHub org — what each one is, how to run it, what it talks to, where
-it deploys — recaps every pull request the org merged each week, and hands all of
-it to your coding agent at session start.
+**Ten repos, eight people, and nobody whose job it is to write the docs.**
+orgami maps every repository in your GitHub organization — what each one is, how
+to run it, what it talks to, where it deploys — digests what the team shipped
+today and this week, keeps the things you only learn once, and hands all of it to
+your coding agent at session start.
 
 ![orgami: the context an agent is handed, one node and its evidence, the map in
 the terminal, and the week's numbers](docs/demo.gif)
@@ -11,19 +12,21 @@ the terminal, and the week's numbers](docs/demo.gif)
 <sub>Recorded against a public organization ([honojs](https://github.com/honojs))
 with `vhs docs/demo.tape` — every line in it came out of a committed file.</sub>
 
+It is built for the size of team where everyone touches everything: no architect
+holding the diagram, no wiki that survived the last three months, and a new hire
+or a coding agent expected to be useful on day one.
+
 - **A map you can check.** Every edge carries the `file:line` it came from, so
-  nothing in it is a model's guess. Missing edge means "not found in committed
+  nothing in it is a model's guess. A missing edge means "not found in committed
   configuration", never "not connected".
-- **A weekly recap you can trust the numbers in.** `jq` computes every figure;
-  Claude only writes the prose, and is told the numbers rather than asked to
-  count.
-- **Context your agent already has.** Open Claude Code or Cursor in a mapped
-  checkout and the repo's stack, run and test commands, linked repos and the
-  team's notes are in the session before you type.
-- **One directory per company**, so a freelancer keeps several clients side by
-  side without mixing them.
+- **Digests you can trust the numbers in.** `jq` computes every figure; Claude
+  only writes the prose, and is told the numbers rather than asked to count.
+- **One memory for the team.** The cause someone found at 2am gets written down
+  once — often without anyone typing it — and everyone's agent reads it.
+- **Nothing to run.** Open Claude Code or Cursor in a mapped checkout and the
+  repo's stack, commands, linked repos and notes are already in the session.
 - **No daemon, no database, no web app.** Bash, `gh`, `jq`, `fzf`, `gum`, a
-  weekly timer, and plain files that diff cleanly in git.
+  timer, and plain files that diff cleanly in git.
 
 *org + origami — folding a flat sheet of repositories into a shape you can see.*
 
@@ -44,38 +47,37 @@ curl -fsSL https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstra
 irm https://raw.githubusercontent.com/achevalier-dev/orgami/main/bootstrap.ps1 | iex
 ```
 
-Then:
+Then, once, on one machine:
 
 ```bash
 gh auth login
-orgami init     # map an organization — or `orgami join` to pick up one that exists
+orgami init     # map your organization
 ```
 
-`--dry-run` prints every step without touching anything. Doing it by hand, or on
-a machine the bootstrap cannot cover, is in
-**[docs/install.md](docs/install.md)**.
+Everyone else on the team runs `orgami join` and picks it up — no scan, no
+clones. `--dry-run` prints every step without touching anything; installing by
+hand is in **[docs/install.md](docs/install.md)**.
 
 ## Use
 
 ```bash
 orgami        # the menu
-orgami init   # add a company, step by step
+orgami init   # map your organization, step by step
 ```
 
 `orgami init` picks the organization from the ones your `gh` token can see, then
-asks where the weekly report should be committed — an existing repo in that org,
-a new one it creates for you (`orgami-reports` by default, private or public), a
-git URL you type, or nowhere at all. It then builds the thing: this week's recap,
-a scan of every repo, the architecture doc, and a first publish if you gave it a
-docs repo. Ctrl-C stops the build and keeps the config. The last question is
-whether to run it weekly. Bare `orgami` opens a menu over whichever company is
-current — browse the map, read the last recap, write this week's, rebuild,
-publish, switch org.
+asks where the reports should be committed — an existing repo in the org, a new
+one it creates for you (`orgami-reports` by default, private or public), a git
+URL you type, or nowhere at all. It then builds the thing: this week's recap, a
+scan of every repo, the architecture doc, and a first publish if you gave it a
+docs repo. Ctrl-C stops the build and keeps the config. The last questions are
+whether to run it weekly and whether to send a digest each morning.
 
-Every step is also a command, which is what the timer and any script should use:
+Bare `orgami` opens a menu: browse the map, read the last recap, write this
+week's, rebuild, publish. Every step is also a command, which is what the timer
+and any script should use:
 
 ```bash
-orgami init acme --org acme-inc --docs-repo git@github.com:acme-inc/handbook.git
 orgami pull            # cache this week's merged PRs
 orgami report          # write reports/2026-W33.md
 orgami scan            # clone every repo in parallel, rebuild the map
@@ -84,73 +86,11 @@ orgami view            # browse the map in the terminal
 orgami publish         # commit both into the docs repo
 ```
 
-`orgami weekly` runs that whole sequence. Schedule it per company with `orgami
-schedule` — a systemd user timer on Linux, a launchd agent on macOS, and a cron
-line to paste anywhere else. `orgami schedule --off` stops it.
+`orgami weekly` runs that whole sequence; `orgami schedule` puts it on a systemd
+user timer, a launchd agent, or a cron line you paste anywhere else.
 
-Add the next client with another `orgami init`. Switch the default with `orgami
-use beta-corp`, or set `ORGAMI_COMPANY=beta-corp` for a single command. If the
-token sees more organizations than you care about, narrow the picker with
-`ORGAMI_ORGS="acme-inc beta-corp"`, or keep `{ "orgs": [...] }` in
-`~/.orgami/config.json`.
-
-## The weekly recap
-
-`orgami pull` pages the GitHub GraphQL search API for every PR the org merged
-that week — body, diff size, labels, reviews, and review threads — and caches the
-raw response under `cache/prs/`. Re-running a week overwrites only that week's
-file.
-
-`orgami report` then splits the work in two, and the split is the point:
-
-- **`jq` computes every number.** PR counts, median diff size, median hours to
-  merge, how many merged with no review at all, who reviews whom, which files
-  keep attracting review threads. `lib/stats.jq`, deterministic, auditable.
-  Run `orgami report --stats-only` to see just this.
-- **Claude writes the prose**, and is told the numbers rather than asked to
-  count. It groups PRs by *why they happened* instead of by repository, and
-  writes a "How the team worked" section off the statistics — review
-  concentration, PR hygiene, cycle time.
-
-That division is deliberate. A model asked to both count and narrate will do
-neither reliably, and a recap nobody trusts the numbers in is not worth writing.
-
-### And a digest of the day
-
-```bash
-orgami daily                  # today, so far
-orgami daily --yesterday      # what the timer runs each weekday morning
-orgami daily --stats-only     # the numbers, no model call, no cost
-```
-
-A day is not a week in miniature: most of a day's work has not merged yet. So
-`orgami daily` reads four things — what merged, what opened, what is sitting
-open with nobody on it, and commits that never became a pull request at all,
-which is the half a merge-based recap cannot see. Same split as the weekly
-recap: `lib/daily.jq` computes every figure, the model writes around them, and
-bots are counted separately from people.
-
-It goes to `reports/daily/<date>.md` and nowhere else until you publish. **A
-quiet day produces no file** — a digest that says "nothing happened" every
-weekend teaches people to stop opening it.
-
-It is a setting on the company, not a habit you have to remember. `orgami init`
-asks once; the menu toggles it; and either way it is two keys in the company
-config, so a second machine reading the same config agrees:
-
-```bash
-orgami init acme --org acme-inc --daily --daily-at 07:30
-orgami schedule --daily              # turn it on for a company that already exists
-orgami schedule --daily --at 09:00   # move it
-orgami schedule --daily --off        # stop it; the digests already written stay
-```
-
-```json
-{ "daily": true, "daily_at": "08:00" }
-```
-
-The timer runs `orgami daily --yesterday` on weekday mornings, through the same
-systemd, launchd or cron path as the weekly run.
+`orgami help` is ten commands — the ones you use. `orgami help --all` is the
+rest: note review, MCP, per-repo runbooks, coupling, pruning.
 
 ## The map
 
@@ -178,30 +118,56 @@ Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),
 one runbook per repo, and `coupling.json` (which repos keep changing together).
 Full detail: **[docs/map.md](docs/map.md)**.
 
-## What an agent reads
+## The digests
 
-With the plugin installed there is nothing to run — opening Claude Code in a
-mapped checkout injects the repo's stack, commands, linked repos and team notes
-at session start, and prints nothing at all outside one. For the whole page:
+**Each morning.** A day is not a week in miniature: most of a day's work has not
+merged yet. So `orgami daily` reads four things — what merged, what opened, what
+is sitting open with nobody on it, and commits that never became a pull request
+at all, which is the half a merge-based recap cannot see.
 
 ```bash
-orgami context          # inside a checkout: that repo. anywhere else: the org.
-orgami context <repo>   # by name
+orgami daily                  # today, so far
+orgami daily --yesterday      # what the timer runs each weekday morning
+orgami daily --stats-only     # the numbers, no model call, no cost
 ```
 
-Cursor reaches the same parity through its `sessionStart` hook; anything that
-speaks MCP gets the map as tools; anything that reads `AGENTS.md` can have the
-context written into the repo. See **[docs/agents.md](docs/agents.md)**.
+**A quiet day produces no file** — a digest that says "nothing happened" every
+weekend teaches people to stop opening it. It is a setting on the org, not a
+habit you have to remember: `orgami init` asks once, the menu toggles it, and
+either way it is two keys in the config, so a second machine agrees.
 
-## Five people, one memory
+```bash
+orgami schedule --daily              # weekday mornings
+orgami schedule --daily --at 09:00   # move it
+orgami schedule --daily --off        # stop it; the digests already written stay
+```
 
-The map and the recaps are generated. What a team knows is not — the cause
+**Each week.** `orgami pull` pages the GitHub GraphQL search API for every PR the
+org merged that week — body, diff size, labels, reviews, review threads — and
+`orgami report` splits the work in two, which is the point:
+
+- **`jq` computes every number.** PR counts, median diff size, median hours to
+  merge, how many merged with no review at all, who reviews whom, which files
+  keep attracting review threads. `lib/stats.jq`, deterministic, auditable.
+  `orgami report --stats-only` shows just this, and costs nothing.
+- **Claude writes the prose**, and is told the numbers rather than asked to
+  count. It groups PRs by *why they happened* instead of by repository, and
+  writes a "How the team worked" section off the statistics — review
+  concentration, PR hygiene, cycle time.
+
+A model asked to both count and narrate will do neither reliably, and a digest
+nobody trusts the numbers in is not worth writing.
+
+## One memory for the team
+
+The map and the digests are generated. What a team knows is not — the cause
 someone found at 2am, the reason the obvious fix does not work, the step missing
-from the README.
+from the README. On a team this size that knowledge lives in one or two heads,
+and leaves with them.
 
 ```bash
 orgami note "Copying the dashboard config into SSM by hand drops every user's apps[]."
-orgami notes --repo WinIt-backend
+orgami notes --repo billing-api
 orgami sync
 ```
 
@@ -224,17 +190,39 @@ go out as they are written — as a pull request when `notes_review` is on, whic
 is the combination worth having: nobody writes the note, and the team can still
 turn one down.
 
-Notes are screened for credentials and for any *other* client configured on the
-machine before they are written, and again before anything is pushed. They can
-require a pull request to reach the team, and they can be superseded and pruned.
-A colleague picks up an existing map with one `orgami join` — no scan, no
-clones. See **[docs/notes.md](docs/notes.md)**.
+Notes are screened for credentials before they are written and again before
+anything is pushed, they can require a pull request to reach the team, and they
+can be superseded and pruned. See **[docs/notes.md](docs/notes.md)**.
+
+## What an agent reads
+
+With the plugin installed there is nothing to run — opening Claude Code in a
+mapped checkout injects the repo's stack, commands, linked repos and team notes
+at session start, and prints nothing at all outside one. For the whole page:
+
+```bash
+orgami context          # inside a checkout: that repo. anywhere else: the org.
+orgami context <repo>   # by name
+```
+
+Cursor reaches the same parity through its `sessionStart` hook; anything that
+speaks MCP gets the map as tools; anything that reads `AGENTS.md` can have the
+context written into the repo. See **[docs/agents.md](docs/agents.md)**.
+
+## More than one organization
+
+orgami assumes one. If you carry a second — a consultancy, a side project, an
+acquired org — `orgami init` again gives it its own directory under
+`~/.orgami`, `orgami use <name>` switches the default, and
+`ORGAMI_COMPANY=<name>` runs a single command against the other. Notes are
+screened against every org configured on the machine, so nothing crosses.
 
 ## Cost
 
-Two Claude calls a week: the recap, and the decision mining. One more if you use
-`orgami doc --narrate`. Everything else is `gh`, `git`, `jq` and `grep`.
-`orgami report --stats-only` costs nothing at all.
+Two Claude calls a week — the recap and the decision mining — plus one short one
+per weekday morning if the daily digest is on. One more if you use `orgami doc
+--narrate`. Everything else is `gh`, `git`, `jq` and `grep`, and every
+`--stats-only` run costs nothing at all.
 
 ## Contributing
 

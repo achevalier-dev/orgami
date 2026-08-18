@@ -1,6 +1,6 @@
 ---
 name: orgami
-description: Load organization context before working on a client's repository — what a repo is, how to run and test it, which repos it talks to, which ones change with it, the org's own conventions, and the decisions already made. Use when starting work in a repo that belongs to a mapped GitHub organization, when asked how services connect, where something is deployed, which repo owns a behavior, what changed recently, or why something is the way it is. Triggers: "how does X talk to Y", "where is this deployed", "how do I run this", "what server runs", "which repo handles", "what shipped last week", "why do we do it this way", "map of the org", "architecture", client or company names configured in orgami.
+description: Load organization context before working on a repository in a mapped GitHub organization — what a repo is, how to run and test it, which repos it talks to, which ones change with it, the org's own conventions, and the decisions already made. Use when starting work in a repo that belongs to a mapped GitHub organization, when asked how services connect, where something is deployed, which repo owns a behavior, what changed recently, or why something is the way it is. Triggers: "how does X talk to Y", "where is this deployed", "how do I run this", "what server runs", "which repo handles", "what shipped last week", "why do we do it this way", "map of the org", "architecture", organization names configured in orgami.
 ---
 
 # orgami
@@ -10,8 +10,8 @@ the org's own agent instructions, decisions mined from merged pull requests, and
 weekly recaps. Read from it before guessing, and before asking the user to
 explain their own system.
 
-State lives in `~/.orgami/<company>/`. One directory per company, so a freelancer
-can hold several clients at once.
+State lives in `~/.orgami/<org>/` — usually one organization, occasionally
+several, one directory each.
 
 ## Start here
 
@@ -102,9 +102,9 @@ step needed to run something. Keep it to a few sentences, written for whoever
 hits the same wall next, and say what the evidence was: a file and line, an error
 string, a pull request number.
 
-Where the company config has `notes_autosync`, record it and say so, rather than
+Where the org config has `notes_autosync`, record it and say so, rather than
 asking first — publishing is guarded, not manual. It is screened for credentials
-and for other clients, a model reviews it against everything already recorded,
+and for any other organization on the machine, a model reviews it against everything already recorded,
 a required check runs in CI, and a note that does not pass is held back with the
 reason rather than shared. `orgami notes --rejected` shows what came back and
 why; rewriting it with the reason addressed is worth doing.
@@ -113,7 +113,7 @@ Without `notes_autosync`, ask first — the note then goes out under the user's
 name the next time they sync.
 
 Never put in a note: a credential of any kind, a token, a connection string with
-a password, or the name of another client. orgami refuses those outright, at
+a password, or the name of another organization on the machine. orgami refuses those outright, at
 write time and again before anything syncs, but do not rely on the filter —
 write as if the note will be read outside the team, because a repository leaks.
 
@@ -154,9 +154,10 @@ that only read files. Those written blocks are snapshots — `orgami agents
 teammate on a different editor gets this, `orgami mcp --config <client>` prints
 the snippet for that client.
 
-## Picking the company
+## Picking the organization
 
-`orgami context` matches the checkout to a company by its git remote on its own.
+`orgami context` matches the checkout to an organization by its git remote on
+its own.
 When that fails, or when you are outside a checkout:
 
 ```bash
@@ -206,5 +207,5 @@ orgami coupling                # recompute what changes together
 `orgami scan` shallow-clones every repo in the org. It takes minutes and hits the
 network — run it when the user asks, not on your own initiative.
 
-`orgami publish` commits everything to the client's docs repo and pushes. Never
+`orgami publish` commits everything to the org's docs repo and pushes. Never
 run it unless the user asks for it in that turn.

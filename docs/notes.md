@@ -18,14 +18,14 @@ Three things keep this from turning into a landfill or a leak.
 Before a note is written — and again before anything is pushed — it is screened
 for private keys, AWS and GitHub and Slack and Stripe tokens, JWTs, connection
 strings carrying a password, and `secret=`-shaped assignments. It is also
-screened for the name of any *other* client configured on the same machine,
-because a freelancer's notes are the obvious place for one client to learn about
-another. Either refuses the write outright. `orgami notes --check` screens
+screened for the name of any *other* organization configured on the same
+machine, because notes are the obvious place for one org's details to end up in
+another's repository. Either refuses the write outright. `orgami notes --check` screens
 everything already on disk, including what arrived from teammates.
 
-Writing a note from inside one client's checkout while another client is the
-current company is refused too, by comparing the checkout's git remote against
-the company's organization.
+Writing a note from inside one organization's checkout while another is the
+current one is refused too, by comparing the checkout's git remote against the
+configured organization.
 
 ## A person can review it first
 

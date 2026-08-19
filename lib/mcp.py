@@ -88,8 +88,9 @@ TOOLS = [
         "name": "orgami_query",
         "description": (
             "One node of the map and both directions of its edges — a repository, a "
-            "host, a deployment tool such as kamal or terraform, or a backing service "
-            "such as postgres. Most edges are extracted and carry the file:line they "
+            "host, a deployment tool such as kamal or terraform, a backing service "
+            "such as postgres, or a third-party vendor such as stripe. Most edges are "
+            "extracted and carry the file:line they "
             "were found on. An edge marked ~ is inferred: nothing declared it, it was "
             "resolved by matching one repo's reading against another's, and there is "
             "no line to open. Say which kind you are relying on."
@@ -122,6 +123,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {"repo": {"type": "string"}},
+        },
+    },
+    {
+        "name": "orgami_dns",
+        "description": (
+            "The third parties the organization has an *account* with, read out of its "
+            "own public DNS the last time somebody ran `orgami dns`: verification "
+            "tokens, mail providers, everything permitted to send as the org, the "
+            "DMARC reporting destination, conventional subdomains and the "
+            "nameservers. This is the half `orgami scan` can never see — no "
+            "repository mentions Google Workspace. Each finding carries the record "
+            "and the day it was read, so it can be checked with the same dig. A "
+            "record proves an account, never a price. Reads the stored file; it "
+            "sends no query."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"vendor": {"type": "string"}},
         },
     },
     {
@@ -223,6 +242,71 @@ def search(query):
     return "\n".join(hits) if hits else f"Nothing in the map mentions {query!r}."
 
 
+def dns(vendor=None):
+    d = company_dir()
+    if not d:
+        return "No orgami company configured. Run `orgami init` or `orgami join`."
+    path = os.path.join(d, "map", "dns.json")
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return (
+            "Nobody has read the DNS yet — no map/dns.json. The map only knows the "
+            "vendors the code names, which leaves out everything the organization "
+            "merely has an account with. `orgami dns` reads it, and is the user's "
+            "call to run."
+        )
+
+    age = None
+    if data.get("generated_epoch"):
+        age = max(0, int(time.time() - data["generated_epoch"]) // 86400)
+    when = "at an unknown time" if age is None else (
+        "today" if age == 0 else "yesterday" if age == 1 else f"{age} days ago"
+    )
+
+    rows = data.get("vendors") or []
+    if vendor:
+        want = vendor.lower()
+        rows = [
+            v for v in rows
+            if want in (v.get("id") or "").lower() or want in (v.get("name") or "").lower()
+        ]
+
+    out = [
+        "Read from the public DNS of "
+        + ", ".join(data.get("domains") or ["nothing"])
+        + f" {when}. Every line is a record anyone can look up again."
+    ]
+    if age is not None and age >= 90:
+        out.append("The reading is over three months old — say so with any claim from it.")
+    out.append("")
+
+    if not rows:
+        out.append(
+            f"Nothing in the reading matches {vendor}." if vendor
+            else "No record matched the vendor catalogue."
+        )
+    for v in rows:
+        out.append(
+            f"- {v.get('name')} ({v.get('category')}) on "
+            + ", ".join(v.get("domains") or [])
+        )
+        for e in v.get("evidence") or []:
+            out.append(f"    {e.get('at')}")
+        if v.get("evidence_omitted"):
+            out.append(f"    (+{v['evidence_omitted']} more of the same kind)")
+
+    counts = data.get("counts") or {}
+    if counts.get("records_unmatched"):
+        out.append("")
+        out.append(
+            f"{counts['records_unmatched']} of {counts.get('records')} records matched "
+            "nothing in the catalogue and were not recorded."
+        )
+    return "\n".join(out)
+
+
 def live(repo=None):
     d = company_dir()
     if not d:
@@ -312,6 +396,8 @@ def call(name, args):
         return read_file("map", "DECISIONS.md")
     if name == "orgami_live":
         return live(args.get("repo"))
+    if name == "orgami_dns":
+        return dns(args.get("vendor"))
     if name == "orgami_symbol":
         want = (args.get("name") or "").strip()
         if not want:

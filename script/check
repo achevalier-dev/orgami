@@ -72,6 +72,26 @@ profile() {
   echo "profile_routes: test paths excluded from endpoints list"
 }
 
+# A vendor edge says an organization is paying somebody, so it may only exist
+# where a committed file says so. Runs against three hand-written checkouts —
+# no clone, no network, no token.
+vendors() {
+  ./test/vendors_match_test.sh >/dev/null
+  echo "vendors: matched on committed evidence, near misses left alone"
+}
+
+advise() {
+  ./test/advise_test.sh >/dev/null
+  echo "advise: every proposal carries its file:line, and a rejection sticks"
+}
+
+# `orgami dns` reads public DNS, so the one thing this must never do is make a
+# query. Runs the matcher against recorded `dig` output through a stub `dig`.
+dns() {
+  ./test/dns_match_test.sh >/dev/null
+  echo "dns: records matched against the catalogue, near misses left alone"
+}
+
 # `orgami live` attributes a deployment to a repo only when the map or an exact
 # name says so. Runs against a stub flyctl — no credentials, no network.
 live() {
@@ -102,13 +122,17 @@ case ${1-} in
   --lint-only) lint ;;
   --stats) stats ;;
   --profile) profile ;;
+  --vendors) vendors ;;
+  --advise) advise ;;
+  --dns) dns ;;
   --live) live ;;
   --depth) depth ;;
   --html) html ;;
-  "") syntax && lint && stats && profile && live && depth && html ;;
+  "") syntax && lint && stats && profile && vendors && advise && dns && live && depth && html ;;
   *)
     echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile |" >&2
-    echo "                     --live | --depth | --html]" >&2
+    echo "                     --vendors | --advise | --dns | --live | --depth |" >&2
+    echo "                     --html]" >&2
     exit 2
     ;;
 esac

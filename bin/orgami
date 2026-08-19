@@ -57,7 +57,8 @@ The map
   orgami doc [--narrate]                render ARCHITECTURE.md and the repo cards
   orgami html                           the map as one page you can open
   orgami view                           browse the map in the terminal
-  orgami query <repo|host|tool|service> print one node and its edges
+  orgami query <repo|host|tool|service|vendor>
+                                        print one node and its edges
   orgami card <repo>                    the repo's page: stack, commands, links
   orgami runbook [<repo>]               how to run, ship and unbreak it
   orgami coupling                       which repos keep changing together
@@ -67,6 +68,11 @@ The map
   orgami depth --stats                  what has been parsed, per repo
   orgami live [--provider vercel,fly,aws] [--json]
                                         what is deployed right now, per provider
+  orgami dns [--domain D]... [--max-domains N] [-y] [--json]
+                                        the vendors the org's public DNS names
+  orgami advise [--all] [--json] [--stale-days N]
+                                        where the map says a vendor is paid for twice
+  orgami advise --reject <id> "why"     answer one, and never be asked again
 
 Digests
   orgami daily [--date D | --yesterday] [--stats-only]
@@ -157,6 +163,7 @@ case $cmd in
   scan)
     source "$ROOT/lib/scan.sh"
     source "$ROOT/lib/profile.sh"
+    source "$ROOT/lib/vendors.sh"
     cmd_scan "$@"
     ;;
   doc)
@@ -189,6 +196,24 @@ case $cmd in
   live)
     source "$ROOT/lib/live.sh"
     cmd_live "$@"
+    ;;
+  dns)
+    # scan.sh for NOISE_DOMAINS, vendors.sh for the catalogue matcher: a DNS
+    # fact is matched against the same lib/vendors.tsv a repository scan uses.
+    source "$ROOT/lib/scan.sh"
+    source "$ROOT/lib/vendors.sh"
+    source "$ROOT/lib/dns.sh"
+    cmd_dns "$@"
+    ;;
+  advise)
+    # notes.sh first: a rejected proposal is stored as an ordinary note, and
+    # advise reads the same index back to know what not to ask again.
+    # dns.sh for DNS_STALE_DAYS — advise unions the DNS reading with the graph
+    # and has to know when one has gone stale.
+    source "$ROOT/lib/notes.sh"
+    source "$ROOT/lib/dns.sh"
+    source "$ROOT/lib/advise.sh"
+    cmd_advise "$@"
     ;;
   note-auto)
     source "$ROOT/lib/notes.sh"
@@ -243,6 +268,7 @@ case $cmd in
     source "$ROOT/lib/report.sh"
     source "$ROOT/lib/scan.sh"
     source "$ROOT/lib/profile.sh"
+    source "$ROOT/lib/vendors.sh"
     source "$ROOT/lib/doc.sh"
     source "$ROOT/lib/coupling.sh"
     source "$ROOT/lib/notes.sh"

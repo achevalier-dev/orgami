@@ -68,6 +68,10 @@ publish_front_page() {
       echo "| [Incidents]($path/INCIDENTS.md) | what pages you, what has broken before and what it turned out to be |"
     [[ -f $DIR/map/DECISIONS.md ]] &&
       echo "| [Decisions]($path/DECISIONS.md) | why things are the way they are, with the pull request for each |"
+    [[ -f $DIR/map/ADVISE.md ]] &&
+      echo "| [Vendors]($path/ADVISE.md) | every third-party service the code names, and what looks worth consolidating |"
+    [[ -f $DIR/map/DNS.md ]] &&
+      echo "| [DNS]($path/DNS.md) | the vendors the organization's public DNS says it has an account with |"
     [[ -f $DIR/map/CONVENTIONS.md ]] &&
       echo "| [Conventions]($path/CONVENTIONS.md) | every AGENTS.md and CLAUDE.md committed in the org |"
     echo "| [All recaps]($path/reports/) | week by week |"
@@ -172,7 +176,12 @@ cmd_publish() {
     cp -f "$DIR/reports/daily/"*.md "$dest/reports/daily/" 2>/dev/null || true
   fi
   local f
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md graph.json graph.html repos.json coupling.json; do
+  # dns.json and DNS.md publish like the rest of the map, unlike live.json
+  # below. The difference is not a policy choice: a DNS record is public, so
+  # anyone holding the page can run the same `dig` and check it. That makes the
+  # reading reproducible, which is the property everything else in this list has
+  # and a cloud reading does not.
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md ADVISE.md DNS.md graph.json graph.html repos.json coupling.json advise.json dns.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
 
@@ -246,6 +255,13 @@ cmd_weekly() {
   if [[ -f $DIR/map/live.json ]]; then
     source "$ROOT/lib/live.sh"
     cmd_live --quiet >/dev/null || true
+  fi
+  # Same rule for the DNS reading: refresh one that exists, never start one. A
+  # timer that begins querying somebody's domains because it was installed is
+  # not a timer anyone asked for.
+  if [[ -f $DIR/map/dns.json ]]; then
+    source "$ROOT/lib/dns.sh"
+    cmd_dns --yes >/dev/null || true
   fi
   cmd_doc
   if [[ $(jq -r '(.workspaces // []) | length' "$DIR/config.json") -gt 0 ]]; then

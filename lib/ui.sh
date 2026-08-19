@@ -295,6 +295,8 @@ cmd_menu() {
 
     action=$(gum choose \
       "browse the map" \
+      "see what to consolidate" \
+      "read the org's DNS" \
       "read the latest recap" \
       "write this week's recap" \
       "write today's digest" \
@@ -309,6 +311,17 @@ cmd_menu() {
         [[ -f $dir/map/graph.json ]] ||
           { gum style --foreground 3 "no map yet — rebuild it first"; ui_pause; continue; }
         "$ORGAMI_BIN" view
+        ;;
+      "see what to consolidate")
+        [[ -f $dir/map/graph.json ]] ||
+          { gum style --foreground 3 "no map yet — rebuild it first"; ui_pause; continue; }
+        "$ORGAMI_BIN" advise | gum pager
+        ;;
+      # Not behind the pager: this one asks which domains it may query, and a
+      # pager would swallow the question.
+      "read the org's DNS")
+        "$ORGAMI_BIN" dns || gum style --foreground 3 "nothing was read"
+        ui_pause
         ;;
       "read the latest recap")
         local latest

@@ -220,7 +220,17 @@ vendors_facts() {
 }
 
 # The catalogue against one set of facts, one line per matched vendor:
-# <id>\t<name>\t<category>\t<portal>\t<signal-kind>\t<evidence>.
+# <id>\t<name>\t<category>\t<portal>\t<signal-kind>\t<evidence>[\t<flags>].
+#
+# `flags` goes last, and is left off the line entirely when the vendor has none.
+# Both halves of that matter, and neither is cosmetic. Every caller reads these
+# lines with `IFS=$'\t' read -r`, and a tab is IFS *whitespace*: a run of them
+# collapses into one delimiter, so an empty field in the middle of the line does
+# not arrive empty — it disappears, and every field after it shifts one to the
+# left. A flags column between the portal and the signal kind would therefore
+# have handed the signal kind to `portal` on the ninety-five rows that carry no
+# flag. A missing field at the *end* is the one case `read` handles the way
+# anyone would expect: the variable is simply empty.
 #
 # Two modes, because the two callers want different things.
 #
@@ -239,12 +249,13 @@ vendors_match() {
   [[ -f $VENDOR_CATALOG ]] || die "no vendor catalogue at $VENDOR_CATALOG"
   awk -F'\t' -v cat="$VENDOR_CATALOG" -v mode="$mode" \
     -v kinds="^($VENDOR_SIGNAL_KINDS):" '
-    function addsig(sig, id, name, category, portal,   p) {
+    function addsig(sig, id, name, category, portal, flags,   p) {
       p = index(sig, ":")
       if (p == 0) return
       ns++
       skind[ns] = substr(sig, 1, p - 1); sre[ns] = substr(sig, p + 1)
       sid[ns] = id; sname[ns] = name; scat[ns] = category; sportal[ns] = portal
+      sflags[ns] = flags
     }
     BEGIN {
       rank["pkg"] = 1; rank["tf"] = 2; rank["action"] = 3
@@ -258,20 +269,26 @@ vendors_match() {
       rank["spf"] = 4; rank["cname"] = 5; rank["ns"] = 6
       while ((getline row < cat) > 0) {
         if (row ~ /^#/ || row ~ /^[[:space:]]*$/) continue
-        if (split(row, f, "\t") < 4) continue
+        # split() clears f, so a five-column row leaves f[6] empty rather than
+        # inheriting the flags of the last row that carried some. That is the
+        # whole reason `flags` is optional at the end of the row and not
+        # anywhere else: every earlier column is positional, and a row that
+        # stopped short of one would shift portal into signals.
+        nf = split(row, f, "\t")
+        if (nf < 4) continue
         # A `|` only opens a new signal when a kind and a colon follow it, so a
         # regex may use alternation without being cut in half.
         n = split(f[4], part, "|")
         cur = ""
         for (i = 1; i <= n; i++) {
           if (part[i] ~ kinds) {
-            if (cur != "") addsig(cur, f[1], f[2], f[3], f[5])
+            if (cur != "") addsig(cur, f[1], f[2], f[3], f[5], f[6])
             cur = part[i]
           } else if (cur != "") {
             cur = cur "|" part[i]
           }
         }
-        if (cur != "") addsig(cur, f[1], f[2], f[3], f[5])
+        if (cur != "") addsig(cur, f[1], f[2], f[3], f[5], f[6])
       }
       close(cat)
     }
@@ -283,13 +300,17 @@ vendors_match() {
         if (!(key in best) || r < best[key]) {
           best[key] = r; ev[key] = $3; kd[key] = skind[i]; vid[key] = sid[i]
           nm[key] = sname[i]; ct[key] = scat[i]; pt[key] = sportal[i]
+          fl[key] = sflags[i]
         }
       }
     }
     END {
-      for (key in best)
-        printf "%s\t%s\t%s\t%s\t%s\t%s\n",
+      for (key in best) {
+        printf "%s\t%s\t%s\t%s\t%s\t%s",
           vid[key], nm[key], ct[key], pt[key], kd[key], ev[key]
+        if (fl[key] != "") printf "\t%s", fl[key]
+        printf "\n"
+      }
     }' "$facts" | sort
 }
 
@@ -297,14 +318,20 @@ vendors_match() {
 # parallel: the only file it writes outside its own temp is $EMIT, which is this
 # repo's alone.
 vendors_scan() {
-  local repo=$1 src=$2 facts id name category portal kind ev
+  local repo=$1 src=$2 facts id name category portal kind ev flags
   [[ -d $src ]] || return 0
   facts=$(mktemp) || return 0
   vendors_facts "$src" >"$facts"
-  while IFS=$'\t' read -r id name category portal kind ev; do
+  while IFS=$'\t' read -r id name category portal kind ev flags; do
     [[ -n $id && -n $ev ]] || continue
+    # The catalogue's flags ride into the node's meta so a map can be read
+    # without the catalogue beside it. `lib/advise.jq` still falls back to
+    # lib/vendors.tsv, because every map scanned before this column existed has
+    # vendor nodes without it and nobody should have to rescan to get advice.
     emit_node "vendor:$id" vendor "$name" \
-      "$(jq -cn --arg c "$category" --arg p "$portal" '{category: $c, portal: $p}')"
+      "$(jq -cn --arg c "$category" --arg p "$portal" --arg f "$flags" \
+         '{category: $c, portal: $p,
+           flags: ($f | if . == "" then [] else split(",") end)}')"
     # The signal rides along on the edge. `lib/advise.jq` otherwise has to read
     # the kind back off the filename it was matched in, which is a guess where
     # this is a record.

@@ -307,7 +307,7 @@ dns_facts() {
 # One domain, from the queries to the matched rows. Appends ndjson to $DNS_ROWS
 # and one summary line to $DNS_SEEN.
 dns_domain_scan() {
-  local d=$1 facts read_n matched_n=0 id name category portal kind ev
+  local d=$1 facts read_n matched_n=0 id name category portal kind ev flags
   facts=$(mktemp)
   dns_facts "$d" >"$facts"
   read_n=$(grep -c '' "$facts" 2>/dev/null || true)
@@ -317,12 +317,17 @@ dns_domain_scan() {
     rm -f "$facts"
     return 0
   fi
-  while IFS=$'\t' read -r id name category portal kind ev; do
+  # `flags` is last and usually absent — see the shape `vendors_match` documents
+  # — so it is read into a name of its own rather than left to fall into `ev`.
+  # It is carried into the row for the same reason `portal` is: a DNS reading is
+  # read back on its own, without the catalogue beside it.
+  while IFS=$'\t' read -r id name category portal kind ev flags; do
     [[ -n $id && -n $ev ]] || continue
     matched_n=$((matched_n + 1))
     jq -cn --arg d "$d" --arg id "$id" --arg name "$name" --arg c "$category" \
-      --arg p "$portal" --arg k "$kind" --arg ev "$ev" \
+      --arg p "$portal" --arg f "$flags" --arg k "$kind" --arg ev "$ev" \
       '{domain:$d, id:$id, name:$name, category:$c, portal:$p,
+        flags: ($f | if . == "" then [] else split(",") end),
         signal:$k, at:$ev}' >>"$DNS_ROWS"
   done < <(vendors_match "$facts" all)
   jq -cn --arg d "$d" --argjson r "$read_n" --argjson m "$matched_n" \
@@ -444,7 +449,7 @@ cmd_dns() {
     '($rows | group_by(.id)
       | map(([group_by(.domain + " " + .signal)[] | sort_by(.at)[0:3][]]) as $kept
             | {id: .[0].id, name: .[0].name, category: .[0].category,
-               portal: .[0].portal,
+               portal: .[0].portal, flags: (.[0].flags // []),
                domains: (map(.domain) | unique),
                signals: (map(.signal) | unique | sort),
                # A domain carrying five google-site-verification tokens is

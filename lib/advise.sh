@@ -42,8 +42,12 @@ advise_mark() { printf '<!-- orgami advise: suppressed %s -->' "$1"; }
 #
 # lib/vendors.tsv is written by the scanner side of this feature. If it is not
 # there yet, or its columns move, this is the one place that has to change: the
-# graph is the real input, and the catalogue only fills in a display name and a
-# category for a vendor whose node did not carry them.
+# graph is the real input, and the catalogue only fills in a display name, a
+# category and the vendor's flags for a node that did not carry them.
+#
+# The flags column is optional and most rows stop before it, so `.[5]` is
+# routinely null — an absent column reads as no flags, never as an error, which
+# is what lets a row be flagged without touching the other hundred.
 advise_catalog() {
   local f="$ROOT/lib/vendors.tsv"
   [[ -f $f ]] || { echo '[]'; return 0; }
@@ -52,7 +56,8 @@ advise_catalog() {
           | map(split("\t"))
           | map(select(length >= 3))
           | map({id: .[0], name: (.[1] // .[0]), category: (.[2] // ""),
-                 signals: (.[3] // ""), portal: (.[4] // "")})
+                 signals: (.[3] // ""), portal: (.[4] // ""),
+                 flags: ((.[5] // "") | if . == "" then [] else split(",") end)})
           | map(select(.id != "id" and .id != ""))' "$f"
 }
 
@@ -165,7 +170,8 @@ EOF
       echo "rebuilds it."
       echo
     elif [[ $(jq -r '.counts.proposals' "$a") == 0 ]]; then
-      jq -r '"Nothing to propose. No two vendors share a category, none is wired into a"
+      jq -r '"Nothing to propose. No two vendors share a category whose members"
+             + " substitute for one another, none is wired into a"
              + " single repository, none belongs to a repository quiet for more than"
              + " \(.stale_days) days, none is matched by an environment variable alone,"
              + " and public DNS shows no account the code does not already account for."' "$a"
@@ -212,6 +218,51 @@ EOF
                + " into the team notes and the proposal does not come back.</sub>",
              ""]
         | .[]' "$a"
+    fi
+
+    # What the rules matched and chose not to say. Two of them hold back where
+    # their premise does not hold, and a rule that silently deletes a finding is
+    # a rule nobody can disagree with — so the section names what was withheld
+    # and where the policy that withheld it lives. It disappears when there is
+    # nothing to report, like every other generated section.
+    if [[ $(jq -r '.counts.excluded' "$a") -gt 0 ]]; then
+      echo "## Not proposed, on purpose"
+      echo
+      cat <<'EOF'
+Two rules matched more than they said. Both restraints are policy, both are
+written down, and both are here rather than left as an absence — a proposal
+withheld quietly is one nobody can argue with.
+EOF
+      echo
+      if [[ $(jq -r '.excluded.duplicate_category | length' "$a") -gt 0 ]]; then
+        cat <<'EOF'
+**Categories whose vendors coexist.** Two vendors sharing a category is only a
+duplicate where they genuinely replace one another — two error trackers, two
+help desks, two workspace suites. Hosting, databases, CDNs and model providers
+are not that: an organization on AWS, Vercel and Heroku is running three
+workloads, not paying three times for one. The categories this rule may fire on
+are listed as `substitutable_categories` in `lib/advise.jq`. Held back here:
+EOF
+        echo
+        jq -r '.excluded.duplicate_category[]
+               | "- **\(.category)** — \(.names | join(", ")) · `\(.id)`"' "$a"
+        echo
+      fi
+      if [[ $(jq -r '.excluded.ghost_env_var | length' "$a") -gt 0 ]]; then
+        cat <<'EOF'
+**Vendors with no SDK to miss.** A variable declared with no package behind it
+usually means an integration that was started and dropped. For a Slack webhook
+URL, a Google Analytics tag or a variable Vercel injects into its own build
+there was never a package to install, so the variable on its own is the finished
+integration. Those vendors carry `no-sdk` in `lib/vendors.tsv`. Held back here:
+EOF
+        echo
+        jq -r '.excluded.ghost_env_var | group_by(.vendor)[]
+               | "- **\(.[0].name)** in "
+                 + (if length == 1 then "1 repository" else "\(length) repositories"
+                    end) + " — " + ([.[] | "`\(.id)`"] | join(", "))' "$a"
+        echo
+      fi
     fi
 
     local hidden

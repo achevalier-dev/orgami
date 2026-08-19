@@ -237,6 +237,130 @@ grep -q 'has no vendor nodes' <<<"$empty_page" ||
   { echo "FAIL: a map with no vendors must say so plainly" >&2; echo "$empty_page" >&2; fail=1; }
 rm -rf "$empty"
 
+# --- what the two policies hold back, on a fixture of their own ----------------
+#
+# Both rules used to fire on premises that are not always true, and both were
+# caught by running the tool against a real organization rather than by reading
+# it. `ghost-env-var` assumed a missing package means an abandoned integration,
+# which is wrong for every vendor wired in by a webhook URL or a script tag.
+# `duplicate-category` assumed two vendors in one category are two bills for one
+# job, which named six hosting providers and proposed folding one into the
+# others. A second fixture rather than an edit to the first, so the counts above
+# keep testing what they were written to test.
+#
+# The flags come from lib/vendors.tsv for slack and vercel, and from the node's
+# own meta for hookrelay, because a map scanned before the column existed has to
+# get the same answer as one scanned after it.
+
+policy=$(mktemp -d)
+mkdir -p "$policy/map" "$policy/notes"
+cat >"$policy/map/graph.json" <<JSON
+{"company": "acme", "org": "acme", "generated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+ "nodes": [
+   {"id": "repo:api", "kind": "repo", "name": "api", "meta": {"pushed_at": "${new}T09:00:00Z"}},
+   {"id": "repo:web", "kind": "repo", "name": "web", "meta": {"pushed_at": "${new}T09:00:00Z"}},
+   {"id": "vendor:slack", "kind": "vendor", "name": "Slack", "meta": {"category": "communication"}},
+   {"id": "vendor:hookrelay", "kind": "vendor", "name": "Hook Relay",
+    "meta": {"category": "communication", "flags": ["no-sdk"]}},
+   {"id": "vendor:twilio", "kind": "vendor", "name": "Twilio", "meta": {"category": "sms"}},
+   {"id": "vendor:aws", "kind": "vendor", "name": "AWS", "meta": {"category": "hosting"}},
+   {"id": "vendor:vercel", "kind": "vendor", "name": "Vercel", "meta": {"category": "hosting"}},
+   {"id": "vendor:netlify", "kind": "vendor", "name": "Netlify", "meta": {"category": "hosting"}},
+   {"id": "vendor:sentry", "kind": "vendor", "name": "Sentry", "meta": {"category": "error-tracking"}},
+   {"id": "vendor:rollbar", "kind": "vendor", "name": "Rollbar", "meta": {"category": "error-tracking"}}],
+ "edges": [
+   {"from": "repo:api", "to": "vendor:slack", "kind": "uses",
+    "evidence": ".env.example:3", "signal": "env", "confidence": "extracted"},
+   {"from": "repo:api", "to": "vendor:hookrelay", "kind": "uses",
+    "evidence": ".env.example:4", "signal": "env", "confidence": "extracted"},
+   {"from": "repo:api", "to": "vendor:twilio", "kind": "uses",
+    "evidence": ".env.example:5", "signal": "env", "confidence": "extracted"},
+   {"from": "repo:api", "to": "vendor:aws", "kind": "uses",
+    "evidence": "package.json:20", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:web", "to": "vendor:aws", "kind": "uses",
+    "evidence": "package.json:14", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:web", "to": "vendor:vercel", "kind": "uses",
+    "evidence": "package.json:15", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:web", "to": "vendor:netlify", "kind": "uses",
+    "evidence": "package.json:16", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:api", "to": "vendor:sentry", "kind": "uses",
+    "evidence": "package.json:18", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:web", "to": "vendor:sentry", "kind": "uses",
+    "evidence": "package.json:18", "signal": "pkg", "confidence": "extracted"},
+   {"from": "repo:api", "to": "vendor:rollbar", "kind": "uses",
+    "evidence": "package.json:19", "signal": "pkg", "confidence": "extracted"}]}
+JSON
+cat >"$policy/map/repos.json" <<JSON
+[{"name": "api", "meta": {"pushed_at": "${new}T09:00:00Z"}},
+ {"name": "web", "meta": {"pushed_at": "${new}T09:00:00Z"}}]
+JSON
+
+saved=$DIR
+DIR="$policy"
+artifact="$policy/map/advise.json"
+advise_compute "$artifact" 180
+
+# --- the no-sdk flag ------------------------------------------------------------
+
+assert "a no-sdk vendor with an env-only signal is not a ghost" 0 \
+  '[.proposals[] | select(.kind == "ghost-env-var")
+   | select(.vendors[0] == "slack")] | length'
+assert "nor is one flagged in the node rather than the catalogue" 0 \
+  '[.proposals[] | select(.kind == "ghost-env-var")
+   | select(.vendors[0] == "hookrelay")] | length'
+assert "an unflagged vendor in exactly the same position still is" twilio \
+  '[.proposals[] | select(.kind == "ghost-env-var")][0].vendors[0]'
+assert "and it is the only one" 1 \
+  '[.proposals[] | select(.kind == "ghost-env-var")] | length'
+assert "what the flag held back is named, not dropped" \
+  "ghost-env-var:hookrelay@api,ghost-env-var:slack@api" \
+  '[.excluded.ghost_env_var[].id] | sort | join(",")'
+assert "each with the repository it was found in" "api,api" \
+  '[.excluded.ghost_env_var[].repo] | sort | join(",")'
+
+# --- the substitutable-category policy ------------------------------------------
+
+assert "three hosting vendors are not a duplicate" 0 \
+  '[.proposals[] | select(.kind == "duplicate-category")
+   | select(.category == "hosting")] | length'
+assert "nor are two vendors in another coexisting category" 0 \
+  '[.proposals[] | select(.kind == "duplicate-category")
+   | select(.category == "communication")] | length'
+assert "two error trackers still are" error-tracking \
+  '[.proposals[] | select(.kind == "duplicate-category")][0].category'
+assert "and that is the only duplicate proposed" 1 \
+  '[.proposals[] | select(.kind == "duplicate-category")] | length'
+assert "the held-back categories are named" "communication,hosting" \
+  '[.excluded.duplicate_category[].category] | sort | join(",")'
+assert "with every vendor in them" "AWS,Netlify,Vercel" \
+  '[.excluded.duplicate_category[] | select(.category == "hosting") | .names[]]
+   | sort | join(",")'
+assert "and the id the proposal would have had" \
+  "duplicate-category:hosting:aws+netlify+vercel" \
+  '[.excluded.duplicate_category[] | select(.category == "hosting") | .id][0]'
+assert "the policy that held them back names itself" true \
+  '.excluded.policy | test("substitutable_categories")'
+assert "and the allow-list is in the artifact to disagree with" true \
+  '[.excluded.substitutable_categories[] | select(. == "error-tracking")] | length == 1'
+assert "everything held back is counted" 4 '.counts.excluded'
+
+# --- and the reader can see all of it -------------------------------------------
+
+policy_page=$(advise_render "$artifact" 0)
+DIR="$saved"
+
+for want in 'Not proposed, on purpose' 'hosting' 'ghost-env-var:slack@api' \
+  'substitutable_categories' 'no-sdk'; do
+  grep -qF "$want" <<<"$policy_page" ||
+    { echo "FAIL: the report does not say '$want' — an exclusion nobody can see is a silent cap" >&2
+      fail=1; }
+done
+grep -qF 'Microsoft Azure' <<<"$policy_page" &&
+  { echo "FAIL: a held-back proposal leaked into the ranked list" >&2; fail=1; }
+[[ $fail == 0 ]] && echo "ok   the report names what policy held back, and where the policy lives"
+
+rm -rf "$policy"
+
 if [[ $fail -eq 0 ]]; then
   echo "advise: every proposal carries its file:line, ids hold still, and a rejection sticks"
 else

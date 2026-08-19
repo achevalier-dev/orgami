@@ -19,7 +19,8 @@
 #   $profiles  --slurpfile of map/repos.json (or /dev/null when there is none)
 #   $dns       --slurpfile of map/dns.json (or /dev/null when nobody has run
 #              `orgami dns`)
-#   $cat       lib/vendors.tsv, parsed to [{id,name,category,signals,portal}]
+#   $cat       lib/vendors.tsv, parsed to
+#              [{id,name,category,signals,portal,flags}]
 #   $sup       [{id, reason, author, date, note}] — proposals a human rejected
 #   $now       epoch seconds
 #   $stale     a repo quieter than this many days makes its vendors orphans
@@ -72,6 +73,62 @@ def signal_kind:
         end
     end;
 
+# --- advice policy: the categories whose vendors are substitutes ---------------
+#
+# `duplicate-category` says two vendors are doing one job, and says it at high
+# confidence. That is only true where the members of a category actually replace
+# one another. A 39-repository organization on AWS, Google Cloud, Heroku, Vercel
+# and Netlify is not paying five times for one thing — those are five different
+# workloads, and "Azure is the least wired in, so fold it into the others",
+# derived from a single TypeScript line, is worse than saying nothing. A wrong
+# high-confidence proposal costs the whole report its reader; a missed one costs
+# nothing but itself. So this is an allow-list, and the default is silence.
+#
+# A category earns a place here when its rows are homogeneous — same job, same
+# audience, and one of them is enough for an organization to function:
+#
+#   payments, billing     one processor takes the money, one ledger bills for it
+#   error-tracking        exceptions land in one place or they land nowhere
+#   incident-response     two rotas paging two sets of people is the failure mode
+#   sms, email            one sender owns the reputation of the sending domain
+#   email-security        a mail gateway sits in front of the MX; there is one MX
+#   dmarc-reporting       one `rua=` destination processes the reports
+#   workspace             mail, identity and documents for staff, once
+#   support               one inbox customers reach, or they reach neither
+#   recruiting            one applicant tracker, or candidates fall between them
+#   feature-flags         two flag services means two answers to "is this on"
+#   status-page           two status pages disagreeing in an incident
+#   e-signature           one signature is legally one signature
+#
+# Everything else is a category whose vendors coexist by design, and the reason
+# in each case is that the category names a shape rather than a job:
+#
+#   hosting, cdn          different workloads live in different places
+#   database, vector-db   a cache, a document store and a warehouse are not one
+#   search                site search, log search and a self-hosted index differ
+#   ai                    model providers are chosen per task, and swapped often
+#   auth                  staff SSO and customer identity are separate products
+#   observability         uptime, logs, traces and dashboards are four purchases
+#   analytics             a CDP feeds the product analytics that feeds the rest
+#   communication         Slack for staff and Discord for a community
+#   project-management    issues, wiki and roadmap are rarely one tool
+#   cms, docs, media      a marketing site, an API reference and video encoding
+#   marketing-email       a newsletter and lifecycle messaging are two audiences
+#   crm                   marketing automation is routinely bought beside sales
+#   code-quality          coverage and static analysis are not the same reading
+#   security, storage     these stack rather than replace
+#   design, whiteboard    creative suites overlap and nobody consolidates them
+#   video, advertising    conferencing and ad platforms are bought per audience
+#   dns                   zones get served wherever they were registered
+#
+# This is advice policy, not a fact about a vendor, which is why it lives here
+# and not in lib/vendors.tsv. The catalogue says what a vendor looks like in
+# somebody's code; that does not change when this list changes its mind.
+def substitutable_categories:
+  ["billing", "dmarc-reporting", "e-signature", "email", "email-security",
+   "error-tracking", "feature-flags", "incident-response", "payments",
+   "recruiting", "sms", "status-page", "support", "workspace"];
+
 def days_since($now):
   if . == null or . == "" then null
   else (try (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) catch null) as $t
@@ -100,7 +157,7 @@ def days_since($now):
     | {vendor: $v.id, repo: null, domain: .domain, at: .at,
        signal: .signal, source: "dns",
        name: ($v.name // ""), category: ($v.category // ""),
-       portal: ($v.portal // "")}]) as $dnsrows
+       portal: ($v.portal // ""), flags: ($v.flags // [])}]) as $dnsrows
 
 | (($cat // []) | map({key: .id, value: .}) | from_entries) as $bycat
 | ((([$vnodes[] | .id | strip_prefix("vendor:")])
@@ -115,6 +172,12 @@ def days_since($now):
                   | if . == "" then ($c.category // $d.category // "") else . end),
        portal: (($n.meta.portal? // "")
                 | if . == "" then ($c.portal // $d.portal // "") else . end),
+       # The node's own flags win, and the catalogue stands in when it has
+       # none — which is every map scanned before the column existed. Reading
+       # the catalogue here is what lets a newly flagged vendor take effect on
+       # the next `orgami advise` rather than on the next full scan.
+       flags: (($n.meta.flags? // [])
+               | if length == 0 then (($c.flags // $d.flags) // []) else . end),
        rows: [$uses[] | select(.vendor == $id)],
        dns: [$dnsrows[] | select(.vendor == $id)]}
     | .repos = (.rows | map(.repo) | unique)
@@ -150,7 +213,13 @@ def days_since($now):
    | group_by(.category)
    | map(select(length > 1))
    | map(sort_by(.repo_count + (.domains | length),
-                 (.rows | length) + (.dns | length), .id) as $g
+                 (.rows | length) + (.dns | length), .id))) as $groups
+| substitutable_categories as $subst
+| ([$groups[] | . as $g | select($subst | index($g[0].category))]) as $subgroups
+| ([$groups[] | . as $g | select(($subst | index($g[0].category)) | not)]) as $coexgroups
+
+| ($subgroups
+   | map(. as $g
      | {kind: "duplicate-category",
         id: ("duplicate-category:" + $g[0].category + ":" + ([$g[].id] | sort | join("+"))),
         confidence: "high",
@@ -167,6 +236,22 @@ def days_since($now):
                 + ". " + $g[0].name + " is the least wired in of the "
                 + ($g | length | tostring) + " — fewest places to touch, so it is the "
                 + "cheapest to fold into the others.")})) as $dup
+
+# The categories this rule was held back on, named rather than dropped. A reader
+# who thinks two search vendors *is* a duplicate can see that the map found two,
+# see that the policy above disagreed, and go and argue with the list.
+| ($coexgroups
+   | map(. as $g
+     | {kind: "duplicate-category",
+        id: ("duplicate-category:" + $g[0].category + ":"
+             + ([$g[].id] | sort | join("+"))),
+        category: $g[0].category,
+        vendors: ([$g[].id] | sort),
+        names: ([($g | reverse)[] | .name]),
+        repo_count: ([$g[].repos[]] | unique | length),
+        reason: ("vendors in " + $g[0].category
+                 + " coexist by design, so two of them is not two bills for "
+                 + "one job")})) as $dup_excluded
 
 # --- 2. one repo away from being droppable ------------------------------------
 | ([$vendors[] | select(.repo_count == 1)]
@@ -213,7 +298,17 @@ def days_since($now):
 # repository is a variable name. What this cannot rule out is a hostname —
 # `lib/vendors.sh` ranks a host below an env var and discards it when both
 # match — so the claim says what was ruled out and stops there.
+#
+# The rule rests on one premise: that a package *would* have been installed if
+# the integration were live. For a whole class of vendor that premise is simply
+# false. A Slack incoming webhook is a URL you POST to, Google Analytics is a
+# script tag, and Vercel injects `VERCEL_*` into its own builds — none of them
+# has an SDK to be missing, so the variable standing alone is the finished
+# integration. Those vendors carry `no-sdk` in lib/vendors.tsv and are skipped
+# here rather than argued with in the claim, because a proposal whose premise
+# does not hold is not a weaker proposal, it is a wrong one.
 | ([$vendors[] | . as $v
+    | select(($v.flags | index("no-sdk")) | not)
     | (.rows | group_by(.repo))[]
     | select(all(.[]; .signal == "env"))
     | .[0].repo as $r
@@ -233,6 +328,22 @@ def days_since($now):
                   then " Public DNS says the account is real, which makes the unused "
                        + "variable the more interesting half."
                   else "" end))}]) as $ghost
+
+# The pairs the flag held back, listed for the same reason the categories are:
+# somebody has to be able to see that Slack was found by an environment variable
+# in six repositories and that this rule chose not to call that a finding.
+| ([$vendors[] | . as $v
+    | select($v.flags | index("no-sdk"))
+    | (.rows | group_by(.repo))[]
+    | select(all(.[]; .signal == "env"))
+    | {kind: "ghost-env-var",
+       id: ("ghost-env-var:" + $v.id + "@" + .[0].repo),
+       vendor: $v.id,
+       name: $v.name,
+       repo: .[0].repo,
+       reason: ("no SDK to install — a webhook URL, a script tag or a variable "
+                + "the platform injects is the whole integration")}])
+  as $ghost_excluded
 
 # --- 5. an account nothing in the code accounts for ---------------------------
 #
@@ -303,8 +414,18 @@ def days_since($now):
    scanned: (($graph.generated // "")[0:10]),
    stale_days: $stale,
    dns: $dnsinfo,
+   # Two rules do not fire everywhere they match, and both restraints are
+   # written down here rather than left as an absence. A reader who disagrees
+   # with either can see exactly what was withheld and where the policy that
+   # withheld it lives.
+   excluded: {duplicate_category: $dup_excluded,
+              ghost_env_var: $ghost_excluded,
+              substitutable_categories: $subst,
+              policy: ("lib/advise.jq — substitutable_categories, "
+                       + "and the no-sdk flag in lib/vendors.tsv")},
    counts: {proposals: ($open | length),
             suppressed: ($hidden | length),
+            excluded: (($dup_excluded | length) + ($ghost_excluded | length)),
             vendors: ($vendors | length),
             repos: (($repos // []) | length),
             vendors_from_code: ([$vendors[] | select(.repo_count > 0)] | length),

@@ -257,6 +257,9 @@ probe	Probe	test	pkg:^probe$|mx:(^|\.)probe\.example$	https://example.invalid
 TSV
 printf 'mx\tmail.probe.example\tMX probe.test\n' >"$home/mini.facts"
 mini=$(VENDOR_CATALOG="$home/mini.tsv" vendors_match "$home/mini.facts" all)
+# Six fields and no seventh: a row with no flags leaves the column off the line
+# rather than ending in a tab, because an empty field is not something
+# `IFS=$'\t' read` can hand back.
 if [[ $mini == $'probe\tProbe\ttest\thttps://example.invalid\tmx\tMX probe.test' ]]; then
   echo "ok   a DNS kind after a code kind opens its own signal"
 else

@@ -7,9 +7,14 @@
 #   id        the node id in the graph, as `vendor:<id>`
 #   name      what a person calls it
 #   category  the job it does. Two vendors sharing a category are two vendors
-#             doing the same job, which is the question a later feature asks —
+#             doing the same job, which is the question `orgami advise` asks —
 #             so the value is load-bearing. Reuse an existing word rather than
-#             coining a synonym, or the overlap goes unseen.
+#             coining a synonym, or the overlap goes unseen. Whether two vendors
+#             sharing a category is worth *proposing* something about is advice
+#             policy and lives in lib/advise.jq, not here: hosting and database
+#             hold vendors that coexist on purpose, error-tracking and workspace
+#             hold substitutes. That judgement changes; what a vendor looks like
+#             in someone's code does not.
 #   signals   a `|`-separated list of `<kind>:<regex>`. A `|` only starts a new
 #             signal when the text after it is one of the known kinds followed
 #             by a colon, so a regex is free to use alternation of its own. The
@@ -18,6 +23,21 @@
 #             swallowed into the regex before it, and the vendor quietly stops
 #             matching.
 #   portal    where a human goes to see what it costs. Never opened by orgami.
+#   flags     optional, comma separated, and absent from most rows — a row with
+#             nothing to say here simply ends after `portal` rather than
+#             carrying a trailing tab nobody can see. One flag is defined:
+#
+#               no-sdk  this vendor is normally wired in through a webhook URL,
+#                       a script tag, or a variable the platform injects into
+#                       the build itself. There is no package to install, so an
+#                       environment variable that no dependency manifest backs
+#                       up is the finished integration rather than an abandoned
+#                       one, and `ghost-env-var` in lib/advise.jq skips the
+#                       vendor entirely. This is not a flag for a vendor that
+#                       has a real SDK people install and *also* happens to
+#                       offer a webhook: Sentry and Stripe do not get it. Slack
+#                       and Google Analytics do, because a webhook URL and a
+#                       script tag are how they are actually integrated.
 #
 # The kinds, and what a fact of each one is:
 #
@@ -61,7 +81,7 @@
 # Elastic all run self-hosted, and a `pkg` match cannot tell the difference —
 # the graph says the code reaches for this vendor, and stops there.
 #
-# id	name	category	signals	portal
+# id	name	category	signals	portal	flags
 stripe	Stripe	payments	pkg:^stripe$|pkg:^@stripe/|pkg:^stripe/stripe-php$|pkg:stripe/stripe-go|env:STRIPE_|host:(^|\.)stripe\.com$|txt:^stripe-verification=|cname:(^|\.)stripecdn\.com$	https://dashboard.stripe.com/settings/billing
 paddle	Paddle	payments	pkg:^@paddle/|env:PADDLE_|host:(^|\.)paddle\.com$	https://vendors.paddle.com/subscription
 sentry	Sentry	error-tracking	pkg:^@sentry/|pkg:^sentry-sdk$|pkg:^sentry-(ruby|rails)$|pkg:getsentry/sentry-go|pkg:^sentry/sentry$|env:SENTRY_|host:(^|\.)sentry\.io$|action:^getsentry/	https://sentry.io/settings/billing/
@@ -72,7 +92,7 @@ newrelic	New Relic	observability	pkg:^newrelic$|pkg:^@newrelic/|pkg:^newrelic-la
 betterstack	Better Stack	observability	pkg:^@logtail/|pkg:^logtail(-python)?$|env:LOGTAIL_|env:BETTER_?STACK_|host:(^|\.)betterstack\.com$|host:(^|\.)logtail\.com$|host:(^|\.)betteruptime\.com$|cname:(^|\.)betteruptime\.com$|cname:(^|\.)status\.betterstack\.com$	https://telemetry.betterstack.com/settings/billing
 honeycomb	Honeycomb	observability	pkg:^@honeycombio/|pkg:^libhoney(-beeline)?$|pkg:^honeycomb-beeline$|env:HONEYCOMB_|host:(^|\.)honeycomb\.io$|tf:^honeycombio$	https://ui.honeycomb.io/account
 grafana	Grafana Cloud	observability	pkg:^@grafana/|env:GRAFANA_CLOUD_|env:^GF_|host:(^|\.)grafana\.net$|host:grafana\.com$|tf:^grafana$	https://grafana.com/orgs
-pagerduty	PagerDuty	incident-response	pkg:^@pagerduty/|pkg:^pdpyras$|env:PAGERDUTY_|env:^PD_(API|ROUTING)|host:(^|\.)pagerduty\.com$|tf:^pagerduty$	https://support.pagerduty.com/main/docs/billing
+pagerduty	PagerDuty	incident-response	pkg:^@pagerduty/|pkg:^pdpyras$|env:PAGERDUTY_|env:^PD_(API|ROUTING)|host:(^|\.)pagerduty\.com$|tf:^pagerduty$	https://support.pagerduty.com/main/docs/billing	no-sdk
 twilio	Twilio	sms	pkg:^twilio$|pkg:^@twilio/|pkg:^twilio/sdk$|env:TWILIO_|host:(^|\.)twilio\.com$	https://console.twilio.com/us1/billing/manage-billing/billing-overview
 sendgrid	SendGrid	email	pkg:^@sendgrid/|pkg:^sendgrid$|env:SENDGRID_|host:(^|\.)sendgrid\.(com|net)$|spf:(^|\.)sendgrid\.net$|cname:(^|\.)sendgrid\.net$	https://app.sendgrid.com/account/billing
 postmark	Postmark	email	pkg:^postmark(-js)?$|pkg:^postmarker$|env:POSTMARK_|host:(^|\.)postmarkapp\.com$|spf:(^|\.)mtasv\.net$|dmarc:(^|\.)postmarkapp\.com$|cname:(^|\.)mtasv\.net$	https://account.postmarkapp.com/subscription
@@ -87,11 +107,11 @@ supabase	Supabase	database	pkg:^@supabase/|pkg:^supabase$|env:SUPABASE_|host:(^|
 firebase	Firebase	database	pkg:^firebase$|pkg:^firebase-admin$|pkg:^firebase-functions$|pkg:^@react-native-firebase/|env:FIREBASE_|host:(^|\.)firebaseio\.com$|host:(^|\.)firebaseapp\.com$|host:firebase\.googleapis\.com$	https://console.firebase.google.com/project/_/usage
 planetscale	PlanetScale	database	pkg:^@planetscale/|env:PLANETSCALE_|env:^PSCALE_|host:(^|\.)psdb\.cloud$|host:(^|\.)planetscale\.com$|tf:^planetscale$	https://app.planetscale.com/_/settings/billing
 neon	Neon	database	pkg:^@neondatabase/|env:NEON_|host:(^|\.)neon\.tech$	https://console.neon.tech/app/billing
-mongodb-atlas	MongoDB Atlas	database	env:MONGODB_ATLAS_|env:^ATLAS_(URI|PUBLIC_KEY|PRIVATE_KEY)|host:(^|\.)mongodb\.net$|host:cloud\.mongodb\.com$|tf:^mongodbatlas$	https://cloud.mongodb.com/v2#/billing
-redis-cloud	Redis Cloud	database	env:REDIS_?CLOUD_|host:(^|\.)redislabs\.com$|host:(^|\.)redis-cloud\.com$|tf:^rediscloud$	https://app.redislabs.com/#/billing
+mongodb-atlas	MongoDB Atlas	database	env:MONGODB_ATLAS_|env:^ATLAS_(URI|PUBLIC_KEY|PRIVATE_KEY)|host:(^|\.)mongodb\.net$|host:cloud\.mongodb\.com$|tf:^mongodbatlas$	https://cloud.mongodb.com/v2#/billing	no-sdk
+redis-cloud	Redis Cloud	database	env:REDIS_?CLOUD_|host:(^|\.)redislabs\.com$|host:(^|\.)redis-cloud\.com$|tf:^rediscloud$	https://app.redislabs.com/#/billing	no-sdk
 upstash	Upstash	database	pkg:^@upstash/|env:UPSTASH_|host:(^|\.)upstash\.io$	https://console.upstash.com/account/billing
 algolia	Algolia	search	pkg:^algoliasearch$|pkg:^@algolia/|pkg:^react-instantsearch|env:ALGOLIA_|host:(^|\.)algolia\.(net|io)$|host:(^|\.)algolianet\.com$	https://dashboard.algolia.com/account/billing
-elastic-cloud	Elastic Cloud	search	env:ELASTIC_CLOUD_ID|env:ELASTICSEARCH_CLOUD|host:(^|\.)elastic-cloud\.com$|host:(^|\.)found\.io$|tf:^ec$	https://cloud.elastic.co/billing/overview
+elastic-cloud	Elastic Cloud	search	env:ELASTIC_CLOUD_ID|env:ELASTICSEARCH_CLOUD|host:(^|\.)elastic-cloud\.com$|host:(^|\.)found\.io$|tf:^ec$	https://cloud.elastic.co/billing/overview	no-sdk
 meilisearch	Meilisearch	search	pkg:^meilisearch$|pkg:^@meilisearch/|env:MEILI(SEARCH)?_|host:(^|\.)meilisearch\.(com|io)$	https://cloud.meilisearch.com/billing
 typesense	Typesense	search	pkg:^typesense$|env:TYPESENSE_|host:(^|\.)typesense\.net$	https://cloud.typesense.org/clusters
 pinecone	Pinecone	vector-db	pkg:^@pinecone-database/|pkg:^pinecone(-client)?$|env:PINECONE_|host:(^|\.)pinecone\.io$	https://app.pinecone.io/organizations/-/settings/billing
@@ -102,12 +122,12 @@ replicate	Replicate	ai	pkg:^replicate$|env:REPLICATE_|host:(^|\.)replicate\.(com
 huggingface	Hugging Face	ai	pkg:^@huggingface/|pkg:^huggingface[-_]hub$|env:HUGGING_?FACE_|env:^HF_(TOKEN|API_TOKEN)$|host:(^|\.)huggingface\.co$|host:(^|\.)hf\.co$	https://huggingface.co/settings/billing
 cloudflare	Cloudflare	cdn	pkg:^wrangler$|pkg:^@cloudflare/|pkg:^cloudflare$|env:CLOUDFLARE_|env:^CF_(API_TOKEN|ACCOUNT_ID|ZONE_ID)|host:(^|\.)cloudflare\.com$|host:(^|\.)workers\.dev$|host:(^|\.)r2\.cloudflarestorage\.com$|tf:^cloudflare$|action:^cloudflare/|ns:(^|\.)ns\.cloudflare\.com$|mx:(^|\.)mx\.cloudflare\.net$	https://dash.cloudflare.com/?to=/:account/billing
 fastly	Fastly	cdn	pkg:^fastly$|pkg:^@fastly/|env:FASTLY_|host:(^|\.)fastly\.(com|net)$|tf:^fastly$	https://manage.fastly.com/account/billing
-vercel	Vercel	hosting	pkg:^vercel$|pkg:^@vercel/|env:^VERCEL_|host:(^|\.)vercel\.(com|app)$|host:(^|\.)vercel-storage\.com$|tf:^vercel$|action:^(amondnet/vercel-action|vercel/)|ns:(^|\.)vercel-dns\.com$|cname:(^|\.)vercel-dns\.com$	https://vercel.com/account/billing
-netlify	Netlify	hosting	pkg:^netlify(-cli)?$|pkg:^@netlify/|env:NETLIFY_|host:(^|\.)netlify\.(com|app)$|tf:^netlify$|action:^netlify/|cname:(^|\.)netlify\.(app|com)$	https://app.netlify.com/teams/_/billing
-fly	Fly.io	hosting	env:^FLY_(API_TOKEN|APP_NAME|ACCESS_TOKEN)|host:(^|\.)fly\.(io|dev)$|action:^superfly/	https://fly.io/dashboard/personal/billing
-render	Render	hosting	env:^RENDER_|host:(^|\.)(on)?render\.com$	https://dashboard.render.com/billing
-railway	Railway	hosting	pkg:^@railway/|env:^RAILWAY_|host:(^|\.)railway\.(app|com)$	https://railway.app/account/billing
-heroku	Heroku	hosting	pkg:^heroku(-client)?$|env:^HEROKU_|host:(^|\.)heroku(app)?\.com$|tf:^heroku$|action:^akhileshns/heroku-deploy	https://dashboard.heroku.com/account/billing
+vercel	Vercel	hosting	pkg:^vercel$|pkg:^@vercel/|env:^VERCEL_|host:(^|\.)vercel\.(com|app)$|host:(^|\.)vercel-storage\.com$|tf:^vercel$|action:^(amondnet/vercel-action|vercel/)|ns:(^|\.)vercel-dns\.com$|cname:(^|\.)vercel-dns\.com$	https://vercel.com/account/billing	no-sdk
+netlify	Netlify	hosting	pkg:^netlify(-cli)?$|pkg:^@netlify/|env:NETLIFY_|host:(^|\.)netlify\.(com|app)$|tf:^netlify$|action:^netlify/|cname:(^|\.)netlify\.(app|com)$	https://app.netlify.com/teams/_/billing	no-sdk
+fly	Fly.io	hosting	env:^FLY_(API_TOKEN|APP_NAME|ACCESS_TOKEN)|host:(^|\.)fly\.(io|dev)$|action:^superfly/	https://fly.io/dashboard/personal/billing	no-sdk
+render	Render	hosting	env:^RENDER_|host:(^|\.)(on)?render\.com$	https://dashboard.render.com/billing	no-sdk
+railway	Railway	hosting	pkg:^@railway/|env:^RAILWAY_|host:(^|\.)railway\.(app|com)$	https://railway.app/account/billing	no-sdk
+heroku	Heroku	hosting	pkg:^heroku(-client)?$|env:^HEROKU_|host:(^|\.)heroku(app)?\.com$|tf:^heroku$|action:^akhileshns/heroku-deploy	https://dashboard.heroku.com/account/billing	no-sdk
 aws	AWS	hosting	pkg:^aws-sdk$|pkg:^@aws-sdk/|pkg:^boto3$|pkg:^aws-amplify$|pkg:^aws-sdk-|pkg:aws/aws-sdk-go|env:^AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|REGION|DEFAULT_REGION|PROFILE|ACCOUNT_ID|SESSION_TOKEN)|host:(^|\.)amazonaws\.com$|tf:^aws$|action:^aws-actions/|ns:(^|\.)awsdns-[0-9]+\.(com|net|org|co\.uk)$|spf:(^|\.)amazonses\.com$	https://console.aws.amazon.com/billing/home
 gcp	Google Cloud	hosting	pkg:^@google-cloud/|pkg:^google-cloud-|pkg:^google-api-python-client$|pkg:cloud\.google\.com/go|env:^GOOGLE_(APPLICATION_CREDENTIALS|CLOUD_PROJECT)|env:^GCP_|env:^GCLOUD_|host:(^|\.)googleapis\.com$|host:(^|\.)run\.app$|tf:^google(-beta)?$|action:^google-github-actions/|ns:(^|\.)googledomains\.com$	https://console.cloud.google.com/billing
 azure	Microsoft Azure	hosting	pkg:^@azure/|pkg:^azure-[a-z]|env:^AZURE_|host:(^|\.)azure\.com$|host:(^|\.)azurewebsites\.net$|host:(^|\.)blob\.core\.windows\.net$|tf:^azure(rm|ad)$|action:^[Aa]zure/|ns:(^|\.)azure-dns\.(com|net|org|info)$	https://portal.azure.com/#view/Microsoft_Azure_GTM/ModernBillingMenuBlade
@@ -116,14 +136,14 @@ segment	Segment	analytics	pkg:^analytics-node$|pkg:^@segment/|pkg:^segment-analy
 posthog	PostHog	analytics	pkg:^posthog-(js|node|python)$|env:POSTHOG_|host:(^|\.)posthog\.com$	https://app.posthog.com/organization/billing
 mixpanel	Mixpanel	analytics	pkg:^mixpanel(-browser)?$|env:MIXPANEL_|host:(^|\.)mixpanel\.com$	https://mixpanel.com/settings/org/billing
 amplitude	Amplitude	analytics	pkg:^@amplitude/|pkg:^amplitude-js$|env:AMPLITUDE_|host:(^|\.)amplitude\.com$	https://analytics.amplitude.com/settings/billing
-google-analytics	Google Analytics	analytics	pkg:^react-ga|pkg:^@next/third-parties$|env:^(NEXT_PUBLIC_|VITE_|REACT_APP_)?GA_(ID|MEASUREMENT_ID|TRACKING_ID)|env:GOOGLE_ANALYTICS|host:(^|\.)google-analytics\.com$|host:(^|\.)googletagmanager\.com$	https://analytics.google.com
+google-analytics	Google Analytics	analytics	pkg:^react-ga|pkg:^@next/third-parties$|env:^(NEXT_PUBLIC_|VITE_|REACT_APP_)?GA_(ID|MEASUREMENT_ID|TRACKING_ID)|env:GOOGLE_ANALYTICS|host:(^|\.)google-analytics\.com$|host:(^|\.)googletagmanager\.com$	https://analytics.google.com	no-sdk
 launchdarkly	LaunchDarkly	feature-flags	pkg:^launchdarkly-|pkg:^@launchdarkly/|env:LAUNCHDARKLY_|env:^LD_(SDK_KEY|CLIENT_ID|CLIENT_SIDE_ID)|host:(^|\.)launchdarkly\.com$|tf:^launchdarkly$	https://app.launchdarkly.com/settings/billing
 statsig	Statsig	feature-flags	pkg:^statsig-|pkg:^@statsig/|env:STATSIG_|host:(^|\.)statsig\.com$	https://console.statsig.com/billing
 intercom	Intercom	support	pkg:^intercom-client$|pkg:^@intercom/|env:INTERCOM_|host:(^|\.)intercom\.(io|com)$|spf:(^|\.)intercom\.io$|cname:(^|\.)intercom\.(help|com)$	https://app.intercom.com/a/apps/_/billing
 zendesk	Zendesk	support	pkg:^node-zendesk$|pkg:^zenpy$|env:ZENDESK_|host:(^|\.)zendesk\.com$|spf:(^|\.)zendesk\.com$|cname:(^|\.)zendesk\.com$	https://support.zendesk.com/admin/billing/subscription
 crisp	Crisp	support	pkg:^crisp-(api|sdk-web)$|env:CRISP_|host:(^|\.)crisp\.chat$	https://app.crisp.chat/settings/plugins/billing
-slack	Slack	communication	pkg:^@slack/|pkg:^slack-sdk$|pkg:^slack_sdk$|env:SLACK_|host:(^|\.)slack\.com$|action:^slackapi/|txt:^slack-domain-verification=	https://slack.com/admin/billing
-discord	Discord	communication	pkg:^discord\.js$|pkg:^discord-py$|pkg:^discord$|env:DISCORD_|host:(^|\.)discord\.com$	https://discord.com/billing
+slack	Slack	communication	pkg:^@slack/|pkg:^slack-sdk$|pkg:^slack_sdk$|env:SLACK_|host:(^|\.)slack\.com$|action:^slackapi/|txt:^slack-domain-verification=	https://slack.com/admin/billing	no-sdk
+discord	Discord	communication	pkg:^discord\.js$|pkg:^discord-py$|pkg:^discord$|env:DISCORD_|host:(^|\.)discord\.com$	https://discord.com/billing	no-sdk
 linear	Linear	project-management	pkg:^@linear/|env:LINEAR_|host:(^|\.)linear\.app$|txt:^linear-domain-verification=	https://linear.app/settings/billing
 notion	Notion	project-management	pkg:^@notionhq/|pkg:^notion-client$|pkg:^notion-sdk-py$|env:NOTION_|host:(^|\.)notion\.(so|com)$|txt:^notion-domain-verification=	https://www.notion.so/my-account/billing
 contentful	Contentful	cms	pkg:^contentful$|pkg:^@contentful/|env:CONTENTFUL_|host:(^|\.)contentful\.com$|host:(^|\.)ctfassets\.net$	https://app.contentful.com/account/organizations/_/billing
@@ -131,7 +151,7 @@ sanity	Sanity	cms	pkg:^@sanity/|pkg:^sanity$|pkg:^next-sanity$|env:SANITY_|host:
 cloudinary	Cloudinary	media	pkg:^cloudinary$|pkg:^@cloudinary/|pkg:^next-cloudinary$|env:CLOUDINARY_|host:(^|\.)cloudinary\.com$	https://console.cloudinary.com/settings/billing
 imgix	Imgix	media	pkg:^imgix-core-js$|pkg:^@imgix/|env:IMGIX_|host:(^|\.)imgix\.(net|com)$	https://dashboard.imgix.com/billing
 mux	Mux	media	pkg:^@mux/|pkg:^mux-(node|embed|player)$|env:MUX_|host:(^|\.)mux\.com$	https://dashboard.mux.com/settings/billing
-codecov	Codecov	code-quality	env:CODECOV_|host:(^|\.)codecov\.(io|com)$|action:^codecov/	https://app.codecov.io/plan
+codecov	Codecov	code-quality	env:CODECOV_|host:(^|\.)codecov\.(io|com)$|action:^codecov/	https://app.codecov.io/plan	no-sdk
 sonar	Sonar	code-quality	pkg:^sonarqube-scanner$|pkg:^sonar-scanner$|env:SONAR_|host:(^|\.)sonarcloud\.io$|host:(^|\.)sonarsource\.com$|action:^SonarSource/	https://sonarcloud.io/organizations/_/billing
 snyk	Snyk	security	pkg:^snyk$|env:SNYK_|host:(^|\.)snyk\.io$|action:^snyk/	https://app.snyk.io/manage/billing
 google-workspace	Google Workspace	workspace	mx:(^|\.)aspmx\.l\.google\.com$|mx:(^|\.)googlemail\.com$|mx:^smtp\.google\.com$|txt:^google-site-verification=|spf:(^|\.)_spf\.google\.com$	https://admin.google.com/ac/billing
@@ -151,7 +171,7 @@ braze	Braze	marketing-email	pkg:^@braze/|pkg:^braze-sdk|env:BRAZE_|host:(^|\.)br
 customerio	Customer.io	marketing-email	pkg:^customerio|pkg:^@customerio/|env:CUSTOMERIO_|env:^CUSTOMER_IO_|host:(^|\.)customer\.io$|spf:(^|\.)customeriomail\.com$|cname:(^|\.)customeriomail\.com$	https://fly.customer.io/settings/billing
 hubspot	HubSpot	crm	pkg:^@hubspot/|pkg:^hubspot-api|env:HUBSPOT_|host:(^|\.)hubapi\.com$|host:(^|\.)hubspot\.com$|spf:(^|\.)hubspotemail\.net$|cname:(^|\.)hs-sites\.com$|cname:(^|\.)hubspot\.net$	https://app.hubspot.com/billing
 salesforce	Salesforce	crm	pkg:^jsforce$|pkg:^simple-salesforce$|env:SALESFORCE_|env:^SF_(USERNAME|LOGIN_URL|INSTANCE_URL)|host:(^|\.)salesforce\.com$|host:(^|\.)force\.com$|spf:(^|\.)_spf\.salesforce\.com$|spf:(^|\.)pardot\.com$	https://login.salesforce.com
-freshdesk	Freshdesk	support	env:FRESHDESK_|host:(^|\.)freshdesk\.com$|spf:(^|\.)freshemail\.io$|cname:(^|\.)freshdesk\.com$	https://www.freshworks.com/pricing/
+freshdesk	Freshdesk	support	env:FRESHDESK_|host:(^|\.)freshdesk\.com$|spf:(^|\.)freshemail\.io$|cname:(^|\.)freshdesk\.com$	https://www.freshworks.com/pricing/	no-sdk
 helpscout	Help Scout	support	pkg:^@helpscout/|env:HELPSCOUT_|env:HELP_SCOUT_|host:(^|\.)helpscout\.(net|com)$|spf:(^|\.)helpscout\.net$|cname:(^|\.)helpscoutdocs\.com$	https://secure.helpscout.net/users/billing
 statuspage	Statuspage	status-page	host:(^|\.)statuspage\.io$|cname:(^|\.)statuspage\.io$	https://manage.statuspage.io
 gitbook	GitBook	docs	host:(^|\.)gitbook\.(io|com)$|cname:(^|\.)gitbook\.io$	https://app.gitbook.com
@@ -172,4 +192,4 @@ miro	Miro	whiteboard	host:(^|\.)miro\.com$|txt:^miro-verification=	https://miro.
 zoom	Zoom	video	pkg:^@zoom/|pkg:^zoomus$|env:^ZOOM_|host:(^|\.)zoom\.us$|txt:^ZOOM_verify_|txt:^zoom-domain-verification=	https://zoom.us/billing
 dropbox	Dropbox	storage	pkg:^dropbox$|pkg:^@dropbox/|env:DROPBOX_|host:(^|\.)dropboxapi\.com$|txt:^dropbox-domain-verification=	https://www.dropbox.com/manage/billing
 meta-business	Meta Business	advertising	txt:^facebook-domain-verification=	https://business.facebook.com/billing_hub
-dnsimple	DNSimple	dns	env:DNSIMPLE_|tf:^dnsimple$|host:(^|\.)dnsimple\.com$|ns:(^|\.)dnsimple\.com$	https://dnsimple.com/pricing
+dnsimple	DNSimple	dns	env:DNSIMPLE_|tf:^dnsimple$|host:(^|\.)dnsimple\.com$|ns:(^|\.)dnsimple\.com$	https://dnsimple.com/pricing	no-sdk

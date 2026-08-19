@@ -66,10 +66,22 @@ depending on the answer.
 ## The five things it looks for
 
 **Two vendors doing the same job.** Every vendor in the catalogue carries a
-category — payments, error-tracking, observability. Two vendors sharing one is
-two bills for one job. The one wired into the fewest repositories is named as
-the consolidation candidate, because it is the cheapest to fold into the other.
-High confidence: the categories are declared, not guessed.
+category — payments, error-tracking, observability. The one wired into the
+fewest repositories is named as the consolidation candidate, because it is the
+cheapest to fold into the other. High confidence: the categories are declared,
+not guessed.
+
+It only fires on categories whose vendors are genuinely substitutes. Two error
+trackers is a duplicate; two mail providers and two help desks are duplicates.
+Six hosting providers is a normal organization — AWS for the data pipeline,
+Vercel for the marketing site, Heroku for the thing nobody has migrated yet —
+and "Azure is the least wired in, so fold it into the others" is bad advice
+delivered at high confidence, which costs more than the finding was worth. The
+allow-list is `substitutable_categories` in `lib/advise.jq`, with the reasoning
+for each category beside it. Everything not on it — hosting, databases, CDNs,
+model providers, analytics, auth — is treated as a category where vendors
+coexist by design, and the report says which categories it held back on rather
+than dropping them silently.
 
 **A vendor in one repository.** Not a problem by itself — it is a note about
 blast radius. Dropping it, or folding it into something already in the map,
@@ -103,6 +115,33 @@ any manifest, no terraform provider, no workflow action. Usually a spike that
 was abandoned with the variable left behind, occasionally a live integration
 wired through something this scan does not read. Medium confidence, and the
 declaring line is right there to check.
+
+Not every vendor has an SDK to be missing. A Slack incoming webhook is a URL you
+POST to, Google Analytics is a script tag, and Vercel injects `VERCEL_*` into
+its own builds — for all three, a variable with no package behind it is the
+finished integration rather than an abandoned one. Those vendors carry `no-sdk`
+in the `flags` column of `lib/vendors.tsv` and this rule skips them. The flag is
+not for a vendor that has a real SDK and also happens to offer a webhook: Sentry
+and Stripe do not get it.
+
+## What it holds back, and says so
+
+Both of those restraints are policy, and policy that quietly deletes a finding
+is policy nobody can argue with. So the report carries a **Not proposed, on
+purpose** section naming every category it declined to call a duplicate and
+every vendor-and-repository pair the `no-sdk` flag took off the list, each with
+the id the proposal would have had:
+
+```
+- **hosting** — AWS, Google Cloud, Heroku, Vercel, Netlify, Microsoft Azure ·
+  `duplicate-category:hosting:aws+azure+gcp+heroku+netlify+vercel`
+- **Slack** in 6 repositories — `ghost-env-var:slack@api`, …
+```
+
+The same thing is in `advise.json` under `excluded`, together with the full
+allow-list of substitutable categories, so a reader who thinks two search
+vendors *is* a duplicate can see what the map found, see that the policy
+disagreed, and go and change the list.
 
 ## Saying no, once
 

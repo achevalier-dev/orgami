@@ -48,6 +48,7 @@ JSON
 cat >"$fixture/paid/.env.example" <<'ENV'
 STRIPE_SECRET_KEY=
 RESEND_API_KEY=
+SLACK_WEBHOOK_URL=
 ENV
 cat >"$fixture/paid/src/index.ts" <<'TS'
 export const model = "gpt-4o";
@@ -167,6 +168,79 @@ assert "every vendor node carries its category" "0" \
 assert "every vendor node carries its portal" "0" \
   '[.[] | select(.t == "node" and .kind == "vendor")
    | select((.meta.portal // "") == "")] | length'
+assert "every vendor node carries a flags list, empty or not" "0" \
+  '[.[] | select(.t == "node" and .kind == "vendor")
+   | select((.meta.flags | type) != "array")] | length'
+assert "a flagged vendor's node says so" "no-sdk" \
+  '[.[] | select(.t == "node" and .id == "vendor:slack")][0].meta.flags | join(",")'
+assert "and an unflagged one carries an empty list, not a missing key" "0" \
+  '[.[] | select(.t == "node" and .id == "vendor:stripe")][0].meta.flags | length'
+
+# --- the sixth column ----------------------------------------------------------
+#
+# `flags` was added to the end of a row that had five columns for a year, and a
+# positional parser that reads one field too many or too few does not fail — it
+# quietly puts the portal in the signals column and the vendor stops matching.
+# So the parse is asserted field by field: a row that carries a flag, a row that
+# does not, and then the shipped catalogue.
+
+mkdir -p "$fixture/six"
+cat >"$fixture/six/cat.tsv" <<'TSV'
+plain	Plain	test	pkg:^plain$	https://plain.example/billing
+flagged	Flagged	test	pkg:^flagged$	https://flagged.example/billing	no-sdk
+TSV
+printf 'pkg\tplain\tpackage.json:2\npkg\tflagged\tpackage.json:3\n' >"$fixture/six/facts"
+six=$(VENDOR_CATALOG="$fixture/six/cat.tsv" vendors_match "$fixture/six/facts")
+
+want=$'flagged\tFlagged\ttest\thttps://flagged.example/billing\tpkg\tpackage.json:3\tno-sdk\nplain\tPlain\ttest\thttps://plain.example/billing\tpkg\tpackage.json:2'
+if [[ $six == "$want" ]]; then
+  echo "ok   a flagged row gains a seventh field and an unflagged one keeps six"
+else
+  echo "FAIL the flags column moved another field:" >&2
+  printf '%s\n' "$six" | cat -A >&2
+  fail=1
+fi
+
+# The reason the column is last and omitted rather than empty: `IFS=$'\t' read`
+# treats a tab as whitespace, so an empty field in the middle of the line does
+# not arrive empty — it vanishes and everything after it shifts left. Asserted
+# through `read` itself, since that is how both callers consume these lines.
+IFS=$'\t' read -r r_id r_name r_cat r_portal r_kind r_ev r_flags \
+  <<<"$(VENDOR_CATALOG="$fixture/six/cat.tsv" vendors_match "$fixture/six/facts" | tail -1)"
+if [[ $r_id == plain && $r_name == Plain && $r_cat == test &&
+      $r_portal == "https://plain.example/billing" &&
+      $r_kind == pkg && $r_ev == "package.json:2" && -z $r_flags ]]; then
+  echo "ok   a row with no flags survives IFS=tab read with every field in place"
+else
+  echo "FAIL a flagless row shifted under read:" >&2
+  echo "  id=$r_id name=$r_name category=$r_cat portal=$r_portal" >&2
+  echo "  kind=$r_kind ev=$r_ev flags=$r_flags" >&2
+  fail=1
+fi
+
+# A row that never had flags has to parse exactly as it did before the column
+# existed. Stripe carries the longest signals list in the catalogue, so a
+# mis-split shows up here first.
+tsvf=$(mktemp)
+printf 'pkg\tstripe\tpackage.json:9\n' >"$tsvf"
+stripe=$(vendors_match "$tsvf")
+if [[ $stripe == $'stripe\tStripe\tpayments\thttps://dashboard.stripe.com/settings/billing\tpkg\tpackage.json:9' ]]; then
+  echo "ok   an unflagged catalogue row parses exactly as it did with five columns"
+else
+  echo "FAIL an unflagged row was changed by the new column: '$stripe'" >&2
+  fail=1
+fi
+
+# And the flag actually reaches the graph, which is the only reason it exists.
+printf 'env\tSLACK_WEBHOOK_URL\t.env.example:4\n' >"$tsvf"
+slack=$(vendors_match "$tsvf")
+rm -f "$tsvf"
+if [[ $slack == *$'\tenv\t.env.example:4\tno-sdk' ]]; then
+  echo "ok   a flagged vendor carries no-sdk out of the catalogue"
+else
+  echo "FAIL slack lost its no-sdk flag: '$slack'" >&2
+  fail=1
+fi
 
 # A signal whose kind is misspelled matches nothing and says nothing about it, so
 # the catalogue's own shape is checked here rather than discovered by a gap in
@@ -174,7 +248,16 @@ assert "every vendor node carries its portal" "0" \
 catalogue=$(awk -F'\t' -v kinds="^($VENDOR_SIGNAL_KINDS):" '
   /^#/ || /^[[:space:]]*$/ { next }
   {
-    if (NF != 5) { print "row " NR ": " NF " fields, expected 5"; bad = 1 }
+    # Five columns, or six when the row carries flags. A row with more has a
+    # stray tab in it, which would shift portal into signals and take the
+    # vendor off the map without saying so.
+    if (NF != 5 && NF != 6) { print "row " NR ": " NF " fields, expected 5 or 6"; bad = 1 }
+    if (NF == 6) {
+      if ($6 == "") { print "row " NR " (" $1 "): empty flags column — end the row at portal instead"; bad = 1 }
+      nfl = split($6, fl, ",")
+      for (j = 1; j <= nfl; j++)
+        if (fl[j] != "no-sdk") { print "row " NR " (" $1 "): unknown flag " fl[j]; bad = 1 }
+    }
     n = split($4, part, "|"); cur = ""; count = 0
     for (i = 1; i <= n; i++) {
       if (part[i] ~ kinds) { if (cur != "") count++; cur = part[i] }

@@ -206,6 +206,18 @@ key declared in `.env.example` that no SDK was ever installed for, and an
 account in the DNS that no repository accounts for. Each proposal carries the
 `file:line` or the DNS record behind it and proposes — it never decides.
 
+**It holds back where the premise does not hold, and names what it held back.**
+Two vendors in one category is only a duplicate where they genuinely replace
+each other: two error trackers, two help desks, two workspace suites. An org
+running AWS, Vercel and Heroku is running three workloads, so hosting — like
+databases, CDNs and model providers — never produces that proposal. And a
+declared variable with no package behind it is only a dead integration where
+there was a package to install: a Slack webhook URL, a Google Analytics tag and
+a variable Vercel injects into its own build are complete as they are. Both
+restraints are written down — an allow-list in `lib/advise.jq`, a `no-sdk` flag
+in `lib/vendors.tsv` — and the report ends with what each of them withheld, so
+you can disagree with the policy instead of wondering where a finding went.
+
 **Code names what you call, not what you pay for.** It cannot tell a free tier
 from an invoice, and it will never find Google Workspace, Microsoft 365, the
 applicant tracker or the e-signature seats — which are usually the top of the

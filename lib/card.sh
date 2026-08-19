@@ -205,6 +205,14 @@ context_overview() {
     live_overview
   fi
 
+  # The vendors no repository names. This one belongs on the org page and
+  # nowhere else: a DNS record is about a domain, and a domain is not a repo's
+  # to claim.
+  if [[ -f $DIR/map/dns.json ]]; then
+    source "$ROOT/lib/dns.sh"
+    dns_overview
+  fi
+
   echo "## Biggest repos by recent work"
   echo
   find "$DIR/cache/prs" -name '*.json' -not -name '*.stats.json' 2>/dev/null |

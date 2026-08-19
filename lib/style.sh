@@ -45,6 +45,7 @@ style_kind_color() {
     host) printf '%s' $'\033[38;5;173m' ;;
     tool) printf '%s' $'\033[38;5;108m' ;;
     service) printf '%s' $'\033[38;5;140m' ;;
+    vendor) printf '%s' $'\033[38;5;168m' ;;
     lang) printf '%s' $'\033[38;5;244m' ;;
     *) printf '%s' $'\033[38;5;244m' ;;
   esac
@@ -56,6 +57,7 @@ style_kind_icon() {
     host) printf '%s' '◆' ;;
     tool) printf '%s' '◈' ;;
     service) printf '%s' '▣' ;;
+    vendor) printf '%s' '◉' ;;
     lang) printf '%s' '·' ;;
     note) printf '%s' '✎' ;;
     recap) printf '%s' '▤' ;;

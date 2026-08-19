@@ -17,7 +17,7 @@ cmd_query() {
   local g="$DIR/map/graph.json"
   [[ -f $g ]] || die "no map yet — run: orgami scan"
   local want=${1:-}
-  [[ -n $want ]] || die "usage: orgami query <repo|host|tool|service>"
+  [[ -n $want ]] || die "usage: orgami query <repo|host|tool|service|vendor>"
   local id
   id=$(resolve_id "$g" "$want")
   [[ -n $id ]] || die "nothing called '$want' in the map — orgami view to browse"

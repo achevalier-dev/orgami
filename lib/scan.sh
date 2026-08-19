@@ -11,7 +11,12 @@ emit_node() {
     '{t:"node", id:$id, kind:$kind, name:$name, meta:$meta}' >>"$EMIT"
 }
 
-# emit_edge <from> <to> <kind> [evidence] [confidence]
+# emit_edge <from> <to> <kind> [evidence] [confidence] [signal]
+#
+# `signal` names which kind of fact matched, where the caller knows — a vendor
+# edge records whether it came from a package manifest or an environment
+# variable. Every other caller leaves it empty, and readers fall back to
+# classifying the evidence path.
 #
 # `confidence` is the same distinction graphify draws, and orgami needs it for
 # the same reason: most edges here are *extracted* — a literal string sat in a
@@ -22,9 +27,10 @@ emit_node() {
 # Extracted is the default because every caller in this file matched a file.
 emit_edge() {
   jq -cn --arg from "$1" --arg to "$2" --arg kind "$3" --arg evidence "${4-}" \
-    --arg confidence "${5:-extracted}" \
+    --arg confidence "${5:-extracted}" --arg signal "${6-}" \
     '{t:"edge", from:$from, to:$to, kind:$kind, evidence:$evidence,
-      confidence:$confidence}' >>"$EMIT"
+      confidence:$confidence}
+     + (if $signal == "" then {} else {signal: $signal} end)' >>"$EMIT"
 }
 
 # emit_tool <repo> <tool> <evidence-file>
@@ -220,6 +226,7 @@ scan_repo() {
 
   scan_deploy "$repo" "$src"
   scan_links "$repo" "$src"
+  vendors_scan "$repo" "$src"
   profile_repo "$repo" "$src" "$meta"
   : >"$EMITDIR/done/$repo"
 }
@@ -313,6 +320,7 @@ cmd_scan() {
     source "$ROOT/lib/common.sh"
     source "$ROOT/lib/scan.sh"
     source "$ROOT/lib/profile.sh"
+    source "$ROOT/lib/vendors.sh"
     scan_repo "$1"' _ {} <"$REPOLIST" &
   local xpid=$!
   if [[ -t 2 ]]; then

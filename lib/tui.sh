@@ -146,15 +146,15 @@ tui_age() {
 tui_colors_json() {
   jq -n --arg repo "$(style_kind_color repo)" --arg host "$(style_kind_color host)" \
     --arg tool "$(style_kind_color tool)" --arg service "$(style_kind_color service)" \
-    --arg lang "$(style_kind_color lang)" \
-    '{repo:$repo, host:$host, tool:$tool, service:$service, lang:$lang}'
+    --arg vendor "$(style_kind_color vendor)" --arg lang "$(style_kind_color lang)" \
+    '{repo:$repo, host:$host, tool:$tool, service:$service, vendor:$vendor, lang:$lang}'
 }
 
 tui_icons_json() {
   jq -n --arg repo "$(style_kind_icon repo)" --arg host "$(style_kind_icon host)" \
     --arg tool "$(style_kind_icon tool)" --arg service "$(style_kind_icon service)" \
-    --arg lang "$(style_kind_icon lang)" \
-    '{repo:$repo, host:$host, tool:$tool, service:$service, lang:$lang}'
+    --arg vendor "$(style_kind_icon vendor)" --arg lang "$(style_kind_icon lang)" \
+    '{repo:$repo, host:$host, tool:$tool, service:$service, vendor:$vendor, lang:$lang}'
 }
 
 tui_rows_map() {

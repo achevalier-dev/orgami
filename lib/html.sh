@@ -76,14 +76,14 @@ HTMLHEAD
   --bg: #ffffff; --panel: #f6f7f9; --line: #e3e6ea; --ink: #16181d;
   --muted: #6b7280; --faint: #9aa1ab;
   --repo: #2f6feb; --host: #b45309; --tool: #7c3aed; --service: #0f766e;
-  --lang: #64748b; --accent: #2f6feb; --shadow: rgba(16,24,40,.10);
+  --vendor: #be185d; --lang: #64748b; --accent: #2f6feb; --shadow: rgba(16,24,40,.10);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1115; --panel: #161a21; --line: #262c36; --ink: #e6e9ef;
     --muted: #98a1af; --faint: #6b7482;
     --repo: #6ea8ff; --host: #f0b45c; --tool: #b98cff; --service: #4fd1c5;
-    --lang: #94a3b8; --accent: #6ea8ff; --shadow: rgba(0,0,0,.5);
+    --vendor: #f472b6; --lang: #94a3b8; --accent: #6ea8ff; --shadow: rgba(0,0,0,.5);
   }
 }
 * { box-sizing: border-box; }
@@ -186,13 +186,13 @@ HTMLHEAD3
 "use strict";
 const G = JSON.parse(document.getElementById("data").textContent);
 
-const KINDS = ["repo", "host", "tool", "service", "lang"];
+const KINDS = ["repo", "host", "tool", "service", "vendor", "lang"];
 const COLOR = {};
 {
   const cs = getComputedStyle(document.documentElement);
   for (const k of KINDS) COLOR[k] = cs.getPropertyValue("--" + k).trim() || "#888";
 }
-const RADIUS = { repo: 8, host: 6, tool: 5.5, service: 6, lang: 4.5 };
+const RADIUS = { repo: 8, host: 6, tool: 5.5, service: 6, vendor: 6, lang: 4.5 };
 
 /* Layout is seeded from the node id, not Math.random, so the same map draws
    the same way for everyone who opens it — a screenshot in a pull request

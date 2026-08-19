@@ -37,7 +37,7 @@ its recent merged pull requests, and links to any `AGENTS.md` it already has.
 | Question | Where |
 |---|---|
 | One repo, in depth | `orgami card <repo>`, or `~/.orgami/<c>/map/repos/<repo>.md` |
-| One node and its edges | `orgami query <repo\|host\|tool\|service>` |
+| One node and its edges | `orgami query <repo\|host\|tool\|service\|vendor>` |
 | The whole org | `~/.orgami/<c>/map/ARCHITECTURE.md` |
 | How they write code here | `~/.orgami/<c>/map/CONVENTIONS.md` |
 | Why something is the way it is | `~/.orgami/<c>/map/DECISIONS.md` |
@@ -173,7 +173,12 @@ is the user's, not yours.
 ## Graph shape
 
 `graph.json` nodes are `{id, kind, name, meta}` where `kind` is `repo`, `host`,
-`tool`, `service` or `lang`. Edges are `{from, to, kind, evidence, confidence}`:
+`tool`, `service`, `vendor` or `lang`. A `vendor` is a third party the code pays
+for — its `meta` carries the category it competes in and where its billing lives.
+Vendors the *code* names live here; vendors the organization has an *account*
+with live in `map/dns.json`, which the graph never carries. Edges are
+`{from, to, kind, evidence, confidence}`, and a vendor edge also carries
+`signal` — which kind of fact matched (`pkg`, `env`, `host`, `tf`, `action`):
 
 - `references` — a repo names another in a manifest or URL
 - `imports` — a parsed import statement in one repo names another (`orgami depth`)
@@ -247,6 +252,25 @@ Two rules for using it:
   credentials for on this machine. `unmatched` in the same file is the other
   half: things running that nothing ties to a repo.
 
+## What the code names, and what the org has an account with
+
+`orgami scan` finds vendors in committed files, so it finds what the code
+*calls*. It will never find Google Workspace, Microsoft 365, the applicant
+tracker or the e-signature seats, because no repository mentions them.
+`map/dns.json`, written by `orgami dns`, is the other half: verification tokens,
+MX, SPF `include:`, the DMARC destination, conventional CNAMEs and nameservers,
+read out of the organization's own public DNS.
+
+Three rules for using it:
+
+- **Say which source a claim rests on.** `orgami advise` tags every row `code`
+  or `dns` and so should you. A DNS finding has no `file:line`; it has a record,
+  and the evidence string is the `dig` that reproduces it.
+- **A record proves an account, never a price.** A verification token means the
+  vendor confirmed this organization owns the domain. It says nothing about the
+  plan, the seats, or whether anyone still logs in.
+- **Quote the age.** The reading carries `generated`; past 90 days say so.
+
 ## Refreshing
 
 ```bash
@@ -261,6 +285,11 @@ network — run it when the user asks, not on your own initiative.
 `orgami live` calls the user's cloud accounts — Vercel, Fly, AWS. Read-only, but
 they are their accounts and their credentials. Read `map/live.json` freely; run
 `orgami live` only when asked for it in that turn.
+
+`orgami dns` sends DNS queries about the user's domains. No credentials and
+nothing written, but it is still traffic on their behalf, and it asks which
+domains it may query before it does. Read `map/dns.json` freely; run `orgami
+dns` only when asked for it in that turn.
 
 `orgami publish` commits everything to the org's docs repo and pushes. Never
 run it unless the user asks for it in that turn.

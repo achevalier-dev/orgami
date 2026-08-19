@@ -9,6 +9,8 @@ what is committed:
 | Deployment tooling | `.github/workflows` actions, `Dockerfile`, `config/deploy.yml` (Kamal), `fly.toml`, `vercel.json`, `netlify.toml`, `render.yaml`, `serverless.yml`, `Chart.yaml`, `Procfile`, `*.tf`, `ansible.cfg`, Kubernetes manifests, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/config.yml` |
 | Servers and endpoints | Kamal `servers:`, Fly app names, Kubernetes ingress hosts, `.env.example` |
 | Backing services | `docker-compose.yml` images, `*_URL` / `*_HOST` names in `.env.example` |
+| Third-party vendors | dependency manifests, `.env.example` variable names, literal URLs, terraform providers and workflow actions, matched against `lib/vendors.tsv` |
+| Third-party accounts | not from the scan at all — `orgami dns` reads the organization's public DNS for verification tokens, MX, SPF, DMARC, conventional CNAMEs and nameservers, against the same `lib/vendors.tsv`. Its own file, its own clock: [docs/dns.md](dns.md) |
 | Repo-to-repo links | `github.com/org/other`, `ghcr.io/org/other`, `@org/other`, and dependency manifests naming a sibling repo |
 | What a repo is | framework (Next.js, NestJS, Express, Rails, Django, FastAPI, Parse, Go, …), package manager, runtime version |
 | How to work on it | `package.json` scripts, Makefile targets, `bin/setup`-style scripts, Procfile process types |
@@ -98,7 +100,7 @@ Four tabs, `tab` and `shift-tab` between them:
 
 | Tab | What the list holds | What the preview shows |
 |---|---|---|
-| **Map** | every node — repos first, then languages, tools, services and hosts | the node, and both directions of every edge that named it |
+| **Map** | every node — repos first, then languages, tools, services, vendors and hosts | the node, and both directions of every edge that named it |
 | **Repos** | one row per repo: language, runtime, how many edges touch it, when it was last pushed | the repo's card — how to run it, what it talks to, where it ships, what it serves, what it reads, and the team's notes on it |
 | **Notes** | what the team has recorded, newest first | the note, its author and its age |
 | **Recaps** | every weekly recap on disk | the recap, through `glow` when it is installed |
@@ -161,3 +163,10 @@ and the same for everyone. It is also why the map can say a repo is *configured*
 to deploy somewhere and not whether it still does. `orgami live` asks the
 providers themselves and keeps the answer in its own file, on its own clock —
 [docs/live.md](live.md).
+
+It is also why the map names the vendors the code *calls* and none of the ones
+it merely has an account with. Nothing in a repository mentions Google
+Workspace, the applicant tracker or the e-signature seats. `orgami dns` reads
+those out of the organization's own public DNS, into `map/dns.json` — also its
+own file, because a DNS reading has no `file:line` either, though unlike a cloud
+reading anyone can re-run the `dig` and check it. [docs/dns.md](dns.md).

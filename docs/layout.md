@@ -22,6 +22,11 @@ lib/profile.sh         what a repo is: framework, commands, env, routes
 lib/card.sh            repo pages and `orgami context`
 lib/coupling.sh        which repos change together
 lib/live.sh            what the providers say is deployed right now
+lib/dns.sh             the org's public DNS -> map/dns.json
+lib/vendors.tsv        the vendor catalogue: one row per third party
+lib/vendors.sh         the matcher, for both committed files and DNS
+lib/advise.sh          what looks worth consolidating, and saying no once
+lib/advise.jq          every proposal, and every number in one
 lib/runbook.sh         how a repo runs, ships and breaks
 lib/notes.sh           the shared note memory
 lib/autonote.sh        notes drafted from a session that has ended
@@ -38,6 +43,7 @@ commands/              /orgami:context and /orgami:note
 .claude-plugin/        plugin and marketplace manifests
 skills/orgami/         the Claude Code skill
 script/check           everything CI runs, runnable locally
+test/*_test.sh         one per gate in script/check, all offline
 test/fixtures/         a fake week and a fake day, for testing with no org
 bootstrap.sh           the one-command install for macOS, Linux and WSL
 bootstrap.ps1          the same for Windows
@@ -69,10 +75,14 @@ Company state, never in this repo:
   map/repos.json       one profile per repo
   map/coupling.json    which repos change together
   map/live.json        what is deployed, per provider, with the age of the reading
+  map/dns.json         the vendors public DNS names, with the record for each
+  map/advise.json      one row per proposal, with its evidence
   map/ARCHITECTURE.md  rendered from the graph
   map/CONVENTIONS.md   the org's own agent instructions, gathered
   map/DECISIONS.md     decisions mined from pull requests, one section per week
   map/RUNBOOK.md       the operational half, org-wide
+  map/ADVISE.md        the vendor advisories, rendered
+  map/DNS.md           what the DNS says the org has an account with
   map/runbooks/        one runbook per repo
   map/repos/<repo>.md  a page per repo
   map/decisions/       one fragment per week, assembled into DECISIONS.md

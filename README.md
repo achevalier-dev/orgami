@@ -186,6 +186,57 @@ unaccounted for, including seven preview environments nobody had cleaned up.
 Names and endpoints only; no environment values, ever.
 **[docs/live.md](docs/live.md)**.
 
+### What the org is paying for
+
+Nobody has the list. The card is on file somewhere, the invoices land in four
+inboxes, and the only person who knew why there are two error trackers left in
+March. `orgami scan` already reads every dependency manifest, `.env.example`,
+terraform provider and workflow file in the org — so it can name the third-party
+services the code actually calls, each with the line that proves it.
+
+```bash
+orgami advise                          # what looks worth consolidating
+orgami advise --json                   # the same, for something else to read
+orgami advise --reject <id> "why"      # answer one, and never be asked again
+```
+
+Five things it will tell you: two vendors doing the same job, a vendor only one
+repo uses, a vendor wired into a repo nobody has pushed to in six months, an API
+key declared in `.env.example` that no SDK was ever installed for, and an
+account in the DNS that no repository accounts for. Each proposal carries the
+`file:line` or the DNS record behind it and proposes — it never decides.
+
+**Code names what you call, not what you pay for.** It cannot tell a free tier
+from an invoice, and it will never find Google Workspace, Microsoft 365, the
+applicant tracker or the e-signature seats — which are usually the top of the
+bill. So there is a second reader, and it needs no credentials at all:
+
+```bash
+orgami dns                             # read the org's own public DNS
+orgami dns --domain acme.com           # one domain, on its own
+```
+
+A `google-site-verification=` or `docusign=` record is a vendor stating that
+this organization proved to *them* that it owns this domain. That is an account,
+not a mention. `orgami dns` reads the verification tokens, the MX records, the
+SPF `include:` list, the DMARC reporting destination, a short list of
+conventional subdomains and the nameservers, and matches them against the same
+catalogue the scan uses. Every finding carries the record it came from and the
+day it was read, so anyone can run the same `dig` and check it — which is why,
+unlike the live reading, this one publishes with the rest of the map.
+**[docs/dns.md](docs/dns.md)**.
+
+`orgami advise` reads both and unions them: a vendor the code and the DNS both
+name is one vendor with two independent pieces of evidence, and every row of
+every table says which found it.
+
+**A rejected proposal stays rejected.** `--reject` writes the reason through
+`orgami note`, so "Rollbar is deliberate — mobile only, Sentry's React Native
+support was broken" lands in the team memory every agent reads at session start,
+and the report never asks again. Without that it is a linter that cries wolf
+every Monday until people stop opening it; with it, the report shrinks, which is
+the signal it is working. **[docs/advise.md](docs/advise.md)**.
+
 Beside the map sit `CONVENTIONS.md` (every `AGENTS.md` in the org, gathered),
 `DECISIONS.md` (mined from merged PRs, one fragment per week), `RUNBOOK.md` and
 one runbook per repo, and `coupling.json` (which repos keep changing together).
@@ -312,6 +363,8 @@ that is the most useful report there is.
 - [The map](docs/map.md) — what the scan looks for, and what it refuses to infer
 - [The symbol layer](docs/depth.md) — `orgami depth`, tree-sitter, and what it can answer
 - [What is running](docs/live.md) — `orgami live`, the providers, and why it is kept apart
+- [What is paid for](docs/advise.md) — `orgami advise`, and saying no to a proposal once
+- [What the DNS says](docs/dns.md) — `orgami dns`, and the vendors code can never see
 - [Other agents](docs/agents.md) — Cursor, MCP clients, `AGENTS.md`
 - [Team notes](docs/notes.md) — screening, review, pruning, `orgami join`
 - [Layout](docs/layout.md) — every file in this repo, and the state it keeps

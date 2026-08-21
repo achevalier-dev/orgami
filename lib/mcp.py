@@ -13,7 +13,7 @@ import sys
 import time
 
 ORGAMI = os.environ.get("ORGAMI_BIN") or "orgami"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 TOOLS = [
     {

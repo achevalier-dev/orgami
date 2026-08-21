@@ -1,7 +1,7 @@
 {
   "name": "orgami",
   "description": "Organization context for agents: what each repo is, how to run it, what it talks to, the team's conventions and decisions, and a shared note memory synced through git.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Antoine Chevalier",
     "url": "https://github.com/achevalier-dev"

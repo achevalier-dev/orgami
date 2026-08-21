@@ -37,11 +37,13 @@ jobs:
             jq empty "$f" || exit 1
           done
 
-      - name: the plugin version matches the manifest
+      - name: every version string matches the manifest
         run: |
           a=$(jq -r .version manifest.json)
           b=$(jq -r .version .claude-plugin/plugin.json)
           [[ "$a" == "$b" ]] || { echo "manifest.json says $a, plugin.json says $b"; exit 1; }
+          c=$(sed -n 's/^VERSION = "\(.*\)"/\1/p' lib/mcp.py)
+          [[ "$a" == "$c" ]] || { echo "manifest.json says $a, lib/mcp.py says $c"; exit 1; }
         shell: bash
 
   cli:

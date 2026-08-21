@@ -70,7 +70,10 @@ TOOLS = [
         "description": (
             "Record something durable the team should not have to rediscover — the "
             "real cause of a bug, why an obvious approach does not work here, an "
-            "undocumented setup step. ASK THE USER BEFORE CALLING THIS: the note is "
+            "undocumented setup step. Also how one instance of recurring work was done "
+            "— one more fetcher, one more endpoint, one more migration — with the "
+            "'pattern' tag and a 'topic'; two instances under one topic write that "
+            "job's playbook. ASK THE USER BEFORE CALLING THIS: the note is "
             "shared with their whole team under their name. Never record secrets, "
             "anything already obvious in the code, or anything specific to one session."
         ),
@@ -80,8 +83,35 @@ TOOLS = [
                 "text": {"type": "string", "description": "The note, a few sentences, with evidence."},
                 "repo": {"type": "string", "description": "Repository it concerns. Defaults to the current checkout."},
                 "tags": {"type": "array", "items": {"type": "string"}},
+                "topic": {
+                    "type": "string",
+                    "description": (
+                        "Only with the 'pattern' tag: the kebab-case name of the recurring "
+                        "job this is one instance of, general enough that the next instance "
+                        "files under it — 'broken-fetcher', not 'carmax-timeout'."
+                    ),
+                },
             },
             "required": ["text"],
+        },
+    },
+    {
+        "name": "orgami_playbook",
+        "description": (
+            "How a recurring kind of change is made in one repository — when you are "
+            "in this case, what to check first, the steps in order, the traps, and the "
+            "check that closes it. Written from the instances the team recorded doing "
+            "it, each claim carrying the note or pull request behind it. Read it before "
+            "starting a job that has one. With no repo, lists every playbook recorded. "
+            "Its prose is the one part of the map a model wrote: the evidence it was "
+            "written from is printed underneath, and where they disagree the evidence wins."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": {"type": "string"},
+                "topic": {"type": "string"},
+            },
         },
     },
     {
@@ -390,7 +420,17 @@ def call(name, args):
             argv += ["--repo", args["repo"]]
         for tag in args.get("tags") or []:
             argv += ["--tag", tag]
+        if args.get("topic"):
+            argv += ["--topic", args["topic"]]
         argv += ["--", text]
+        return run(argv)
+    if name == "orgami_playbook":
+        repo = (args.get("repo") or "").strip()
+        if not repo:
+            return run(["playbooks"])
+        argv = ["playbook", repo]
+        if args.get("topic"):
+            argv += ["--topic", args["topic"]]
         return run(argv)
     if name == "orgami_decisions":
         return read_file("map", "DECISIONS.md")

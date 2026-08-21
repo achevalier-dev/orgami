@@ -29,6 +29,9 @@ or a coding agent expected to be useful on day one.
   only writes the prose, and is told the numbers rather than asked to count.
 - **One memory for the team.** The cause someone found at 2am gets written down
   once — often without anyone typing it — and everyone's agent reads it.
+- **Procedures, not just facts.** Two recorded instances of the same job — one
+  more fetcher, one more endpoint — write the playbook for it, so the next one
+  starts from what the last two learned.
 - **Nothing to run.** Open Claude Code or Cursor in a mapped checkout and the
   repo's stack, commands, linked repos and notes are already in the session.
 - **No daemon, no database, no web app.** Bash, `gh`, `jq`, `fzf`, `gum`, a
@@ -309,9 +312,10 @@ orgami sync
 
 Mostly you will not type that. When a session ends, orgami reads back what was
 said and writes a note if the session established something durable that is not
-visible in the code. Most sessions produce nothing, which is the intended answer;
-the prompt is told so. Five a day at most, credentials stripped before the
-transcript leaves the machine, and `ORGAMI_AUTONOTE=0` turns it off.
+visible in the code. Sessions rarely end cleanly — a window gets closed, a
+machine gets shut — so the next session sweeps up whatever was left unread,
+newest first. Five a day at most, credentials stripped before the transcript
+leaves the machine, and `ORGAMI_AUTONOTE=0` turns it off.
 
 ```bash
 orgami autonote            # what it does today
@@ -329,6 +333,36 @@ turn one down.
 Notes are screened for credentials before they are written and again before
 anything is pushed, they can require a pull request to reach the team, and they
 can be superseded and pruned. See **[docs/notes.md](docs/notes.md)**.
+
+### The work that keeps coming round
+
+A note holds one fact. It cannot hold a procedure, and a procedure is what most
+of the work actually needs: this repository has thirty fetchers, and fixing the
+fourth one should not start where the first one did.
+
+So a note can be an *instance* of a recurring job rather than a standing fact:
+
+```bash
+orgami note --repo scraphome --tag pattern --topic broken-fetcher \
+  "The Carmax fetcher returned an empty list rather than throwing, so the job
+   logged success. Switched it to the headless path copart.ts already uses."
+```
+
+Two instances under the same topic write that job's playbook by themselves —
+when you are in this case, what to check first, the steps in order, the traps,
+and the check that closes it. Every claim in it carries the note or the pull
+request it came from, and each further instance rewrites it.
+
+```bash
+orgami playbooks                                  # every one recorded
+orgami playbook scraphome --topic broken-fetcher  # the procedure itself
+```
+
+This is the one file in the map a model writes, because a procedure cannot be
+computed out of committed files — only read out of what the repeated instances
+had in common. So everything it was written from is printed underneath it, and
+where the two disagree the evidence wins. See
+**[docs/playbooks.md](docs/playbooks.md)**.
 
 ## What an agent reads
 
@@ -379,6 +413,7 @@ that is the most useful report there is.
 - [What the DNS says](docs/dns.md) — `orgami dns`, and the vendors code can never see
 - [Other agents](docs/agents.md) — Cursor, MCP clients, `AGENTS.md`
 - [Team notes](docs/notes.md) — screening, review, pruning, `orgami join`
+- [Playbooks](docs/playbooks.md) — recording an instance, and the procedure it writes
 - [Layout](docs/layout.md) — every file in this repo, and the state it keeps
 
 ## Licence

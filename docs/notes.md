@@ -13,6 +13,20 @@ orgami sync
 
 Three things keep this from turning into a landfill or a leak.
 
+## A note holds a fact; a playbook holds a procedure
+
+Some work is not one fact. A repository holds thirty fetchers and the job is
+fixing another one — nothing surprising, which is why nobody writes it down, and
+why the fifth one starts where the first did. Tag a note `pattern` and give it a
+`--topic` and it becomes an instance of that job instead of a standing fact:
+
+```bash
+orgami note --repo scraphome --tag pattern --topic broken-fetcher "…"
+```
+
+Two instances under one topic write the playbook for it, and every one after
+rewrites it. See **[playbooks.md](playbooks.md)**.
+
 ## Nothing shareable gets in
 
 Before a note is written — and again before anything is pushed — it is screened

@@ -45,6 +45,19 @@ when the map is stale rather than trusting it silently, distinguish "not found i
 committed configuration" from "not connected", and never run `orgami publish` on
 its own.
 
+The skill covers the other direction too, which is the half that decides whether
+any of this accumulates: when a piece of work is finished, what does it leave
+behind? A durable fact goes to `orgami note`; one instance of a job that will
+come round again — one more fetcher, one more endpoint — goes to `orgami note
+--tag pattern --topic <job>`, and two of those write that job's playbook by
+themselves. See [playbooks.md](playbooks.md).
+
+Sessions are also read back on their own. The end-of-session hook drafts a note
+from what was said, and because most sessions never end cleanly — a window
+closed, a machine shut — the *next* session sweeps up whatever was left unread,
+newest first, detached so nothing waits on it. `orgami drafts` keeps or throws
+away what was written for you; `ORGAMI_AUTONOTE=0` turns the whole thing off.
+
 ## Anything that speaks MCP
 
 Cursor, opencode, Windsurf, Zed, Codex, VS Code and Claude Desktop get the map as

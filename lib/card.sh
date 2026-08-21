@@ -116,6 +116,11 @@ card_render() {
     notes_for_repo "$repo"
   fi
 
+  if [[ -d $DIR/map/playbooks ]]; then
+    source "$ROOT/lib/playbook.sh"
+    playbook_section "$repo"
+  fi
+
   local prs
   prs=$(card_recent_prs "$repo")
   if [[ -n $prs ]]; then
@@ -277,6 +282,10 @@ cmd_brief() {
   fi
   source "$ROOT/lib/notes.sh"
   notes_for_repo "$want" | sed 's/^## What the team has learned/team notes on this repo:/'
+  if [[ -d $DIR/map/playbooks ]]; then
+    source "$ROOT/lib/playbook.sh"
+    playbook_brief "$want"
+  fi
   echo "full page: orgami context · org: orgami context --org · why: $DIR/map/DECISIONS.md"
 }
 

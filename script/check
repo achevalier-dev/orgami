@@ -111,6 +111,20 @@ depth() {
   ./test/depth_parse_test.sh
 }
 
+# A note left in an unmerged pull request is a note nobody wrote. Runs against a
+# stub gh and a stub git — no network, no repository, no push.
+notes() {
+  ./test/notes_merge_test.sh >/dev/null
+  echo "notes: a protected branch queues, a moved base retries, anything else reports"
+}
+
+# A playbook's prose is written by a model, so the gathering under it has to be
+# exact. Runs against hand-written notes and a hand-written pull request cache.
+playbook() {
+  ./test/playbook_test.sh >/dev/null
+  echo "playbook: instances counted, one instance refused, the same job matched"
+}
+
 # map/graph.html must open with no network and say what graph.json says.
 html() {
   ./test/html_render_test.sh >/dev/null
@@ -127,12 +141,14 @@ case ${1-} in
   --dns) dns ;;
   --live) live ;;
   --depth) depth ;;
+  --notes) notes ;;
+  --playbook) playbook ;;
   --html) html ;;
-  "") syntax && lint && stats && profile && vendors && advise && dns && live && depth && html ;;
+  "") syntax && lint && stats && profile && vendors && advise && dns && live && depth && notes && playbook && html ;;
   *)
     echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile |" >&2
     echo "                     --vendors | --advise | --dns | --live | --depth |" >&2
-    echo "                     --html]" >&2
+    echo "                     --notes | --playbook | --html]" >&2
     exit 2
     ;;
 esac

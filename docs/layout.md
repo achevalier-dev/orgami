@@ -29,7 +29,9 @@ lib/advise.sh          what looks worth consolidating, and saying no once
 lib/advise.jq          every proposal, and every number in one
 lib/runbook.sh         how a repo runs, ships and breaks
 lib/notes.sh           the shared note memory
-lib/autonote.sh        notes drafted from a session that has ended
+lib/autonote.sh        notes drafted from a session that has ended, and the
+                       sweep for sessions that never ended cleanly
+lib/playbook.sh        the procedure behind work that keeps coming round
 lib/schedule.sh        the weekly and daily timers, per platform
 lib/mcp.py             the MCP server, standard library only
 lib/agents.sh          AGENTS.md and Cursor rules, MCP config snippets
@@ -38,7 +40,9 @@ lib/publish.sh         commit to the docs repo, weekly runner
 prompts/recap.md       the recap prompt
 prompts/decisions.md   the decision-mining prompt
 prompts/daily.md       the daily digest prompt
-hooks/                 the SessionStart hook
+prompts/autonote.md    what is worth recording out of a finished session
+prompts/playbook.md    the procedure prompt, written from recorded instances
+hooks/                 the SessionStart and SessionEnd hooks
 commands/              /orgami:context and /orgami:note
 .claude-plugin/        plugin and marketplace manifests
 skills/orgami/         the Claude Code skill
@@ -81,9 +85,13 @@ Company state, never in this repo:
   map/CONVENTIONS.md   the org's own agent instructions, gathered
   map/DECISIONS.md     decisions mined from pull requests, one section per week
   map/RUNBOOK.md       the operational half, org-wide
+  map/PLAYBOOKS.md     one row per playbook, with its instance count
   map/ADVISE.md        the vendor advisories, rendered
   map/DNS.md           what the DNS says the org has an account with
   map/runbooks/        one runbook per repo
+  map/playbooks/       <repo>--<topic>.md, one per recurring kind of work
+                       the only prose in the map a model wrote, with the
+                       evidence it was written from printed underneath
   map/repos/<repo>.md  a page per repo
   map/decisions/       one fragment per week, assembled into DECISIONS.md
 ```

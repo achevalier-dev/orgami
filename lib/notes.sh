@@ -2,6 +2,11 @@
 # Shared memory for a team. One file per note, so five people writing at once
 # never conflict; the docs repo is the sync layer, so there is nothing to host.
 
+# The one tag that does not file into a runbook section. A `pattern` note is a
+# step in a procedure rather than a standing fact, and it carries a `topic:` —
+# every pattern note sharing a repo and a topic becomes one playbook.
+PLAYBOOK_TAG=pattern
+
 notes_author() {
   local a
   a=$(jq -r '.author // empty' "$ORGAMI_HOME/config.json" 2>/dev/null)
@@ -102,11 +107,12 @@ cmd_note() {
   source "$ROOT/lib/card.sh"
   mkdir -p "$DIR/notes"
 
-  local repo="" tags=() text="" push=0 supersedes=""
+  local repo="" tags=() text="" push=0 supersedes="" topic=""
   while [[ $# -gt 0 ]]; do
     case $1 in
       --repo | -r) repo=$2; shift 2 ;;
       --tag | -t) tags+=("$2"); shift 2 ;;
+      --topic) topic=$2; shift 2 ;;
       --push) push=1; shift ;;
       --supersede) supersedes=$2; shift 2 ;;
       --) shift; text="$*"; break ;;
@@ -153,10 +159,18 @@ cmd_note() {
   if [[ ${#tags[@]} -eq 0 ]] && command -v gum >/dev/null; then
     source "$ROOT/lib/runbook.sh"
     local picked
-    picked=$(printf '%s\n' "${RUNBOOK_TAGS[@]}" "none of these" |
+    picked=$(printf '%s\n' "${RUNBOOK_TAGS[@]}" "$PLAYBOOK_TAG" "none of these" |
       gum choose --header "File it in the runbook under…" 2>/dev/null || true)
     [[ -n $picked && $picked != "none of these" ]] && tags=("$picked")
   fi
+
+  # A `pattern` note is a step in a procedure, and a procedure has a name. With
+  # no topic given, the first few words are the name — poor, but better than
+  # filing every pattern in the repo under one heading.
+  if [[ -z $topic ]] && printf '%s\n' "${tags[@]:-}" | grep -qx "$PLAYBOOK_TAG"; then
+    topic=$(notes_slug "$(cut -c1-60 <<<"${text%%$'\n'*}")")
+  fi
+  [[ -n $topic ]] && topic=$(notes_slug "$topic")
 
   local author stamp id file
   author=$(notes_author)
@@ -170,6 +184,7 @@ cmd_note() {
     echo "author: $author"
     echo "date: $stamp"
     [[ -n $repo ]] && echo "repo: $repo"
+    [[ -n $topic ]] && echo "topic: $topic"
     [[ -n $supersedes ]] && echo "supersedes: $supersedes"
     [[ ${#tags[@]} -gt 0 ]] && printf 'tags: [%s]\n' "$(
       IFS=,
@@ -181,6 +196,16 @@ cmd_note() {
   } >"$file"
 
   echo "$file"
+
+  # The instance that completes a procedure writes the procedure.
+  if [[ -n $repo && -n $topic ]]; then
+    source "$ROOT/lib/playbook.sh"
+    playbook_maybe "$repo" "$topic" || true
+    local built
+    built=$(playbook_file "$repo" "$topic")
+    [[ -f $built ]] && log "playbook: $built"
+  fi
+
   if [[ $push == 1 ]]; then
     cmd_sync
   elif [[ $(cfg notes_autosync false) == true ]]; then
@@ -208,8 +233,8 @@ notes_index() {
       { body = body $0 "\n" }
       END {
         gsub(/\\/, "\\\\", body); gsub(/"/, "\\\"", body); gsub(/\n/, "\\n", body)
-        printf "{\"id\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"repo\":\"%s\",\"tags\":\"%s\",\"supersedes\":\"%s\",\"file\":\"%s\",\"body\":\"%s\"}\n",
-          meta["id"], meta["author"], meta["date"], meta["repo"], meta["tags"], meta["supersedes"], file, body
+        printf "{\"id\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"repo\":\"%s\",\"tags\":\"%s\",\"topic\":\"%s\",\"supersedes\":\"%s\",\"file\":\"%s\",\"body\":\"%s\"}\n",
+          meta["id"], meta["author"], meta["date"], meta["repo"], meta["tags"], meta["topic"], meta["supersedes"], file, body
       }' "$f"
   done | jq -s '
     (map(.supersedes) | map(select(. != "")) | unique) as $dead
@@ -404,6 +429,42 @@ cmd_screen() {
 }
 
 # Review the open notes pull requests without leaving the terminal.
+# Merging a notes pull request, against a repository that has opinions about it.
+# A protected base branch refuses the merge outright, and a base that moved
+# between the read and the merge refuses the one already in flight. Neither is a
+# failure of the note: the first is answered by queueing the merge for when the
+# branch policy is satisfied, the second by trying once more against the branch
+# as it now is. Anything else is reported rather than swallowed, because a note
+# nobody can see is the same as a note nobody wrote.
+notes_pr_merge() {
+  local work=$1 n=$2 said=${3:-} out
+  if out=$( (cd "$work" && gh pr merge "$n" --squash --delete-branch) 2>&1); then
+    echo "merged #$n${said:+ $said}"
+    return 0
+  fi
+
+  if grep -qi 'base branch was modified' <<<"$out"; then
+    git -C "$work" fetch --quiet origin 2>/dev/null || true
+    if out=$( (cd "$work" && gh pr merge "$n" --squash --delete-branch) 2>&1); then
+      echo "merged #$n${said:+ $said}"
+      return 0
+    fi
+  fi
+
+  if grep -qiE 'not mergeable|branch policy|protected branch|required status check|review required' <<<"$out"; then
+    if (cd "$work" && gh pr merge "$n" --squash --delete-branch --auto) >/dev/null 2>&1; then
+      echo "#$n will merge once its checks and its branch policy allow it"
+      return 0
+    fi
+    echo "#$n passed but the docs repo will not merge it: $(grep -v '^$' <<<"$out" | head -1)" >&2
+    echo "  merge it yourself: gh pr merge $n --squash --delete-branch --repo $(cfg docs_repo | sed -E 's|.*[:/]([^/]+/[^/]+?)(\.git)?$|\1|')" >&2
+    return 1
+  fi
+
+  echo "could not merge #$n: $(grep -v '^$' <<<"$out" | head -1)" >&2
+  return 1
+}
+
 cmd_review() {
   load_company
   need gh
@@ -465,8 +526,7 @@ cmd_review() {
         continue
       case $choice in
         "merge it")
-          (cd "$work" && gh pr merge "$n" --squash --delete-branch) &&
-            echo "merged #$n — teammates get it on their next 'orgami sync'"
+          notes_pr_merge "$work" "$n" "— teammates get it on their next 'orgami sync'"
           ;;
         "open in the browser") (cd "$work" && gh pr view "$n" --web) ;;
         "close it") (cd "$work" && gh pr close "$n" --delete-branch) && echo "closed #$n" ;;
@@ -508,8 +568,7 @@ review_auto() {
   if [[ $(jq 'length' "$bodies") -eq 0 ]]; then
     rm -f "$bodies"
     if [[ $merge == 1 ]]; then
-      (cd "$work" && gh pr merge "$n" --squash --delete-branch) &&
-        echo "merged #$n (removals only, nothing to review)"
+      notes_pr_merge "$work" "$n" "(removals only, nothing to review)"
     else
       log "#$n only removes notes — merge it with: orgami review --auto --merge"
     fi
@@ -613,8 +672,7 @@ review_auto() {
   fi
 
   if [[ $merge == 1 ]]; then
-    (cd "$work" && gh pr merge "$n" --squash --delete-branch) &&
-      echo "merged #$n"
+    notes_pr_merge "$work" "$n"
   else
     echo "#$n is clean — merge it with: orgami review --auto --merge"
   fi

@@ -107,6 +107,11 @@ doc_runbooks() {
   done < <(jq -r '.[].name' "$DIR/map/repos.json")
   runbook_org
   runbook_incidents_page
+
+  # The index only. The playbooks themselves are written by a model, so they are
+  # rewritten when an instance lands — not on every `orgami doc`.
+  source "$ROOT/lib/playbook.sh"
+  playbook_index >/dev/null 2>&1 || true
 }
 
 # Instructions for a Claude Project pointed at the published repository, so
@@ -154,6 +159,8 @@ What is in here:
 - `DECISIONS.md` — choices that were made and why, each linked to the change
   that made it. Start here for "why is it like this".
 - `RUNBOOK.md` and `runbooks/` — how each system is run, shipped and unbroken.
+- `PLAYBOOKS.md` and `playbooks/` — how one recurring kind of change is made in
+  one repository, written from the instances the team recorded doing it.
 - `ARCHITECTURE.md` and `repos/` — what each system is and how they connect.
 - `CONVENTIONS.md` — how this team writes code.
 

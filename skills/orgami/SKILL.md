@@ -1,6 +1,6 @@
 ---
 name: orgami
-description: Load organization context before working on a repository in a mapped GitHub organization — what a repo is, how to run and test it, which repos it talks to, which ones change with it, the org's own conventions, and the decisions already made. Use when starting work in a repo that belongs to a mapped GitHub organization, when asked how services connect, where something is deployed, which repo owns a behavior, what changed recently, or why something is the way it is. Triggers: "how does X talk to Y", "where is this deployed", "how do I run this", "what server runs", "which repo handles", "what shipped last week", "why do we do it this way", "map of the org", "architecture", organization names configured in orgami.
+description: Read and write the organization's memory for a repository in a mapped GitHub organization — what a repo is, how to run and test it, what it talks to, the conventions, the decisions, and the playbooks for work that keeps coming round. Use at the start of work in a mapped repo, and again when a piece of work is finished, to record what it leaves behind. Triggers, reading: "how does X talk to Y", "where is this deployed", "how do I run this", "which repo handles", "what shipped last week", "why do we do it this way", "map of the org", "architecture", organization names configured in orgami. Triggers, writing: finishing a fix or a feature in a mapped repo; doing one of a kind of job that will recur (one more fetcher, scraper, endpoint, migration, integration, client); finding the real cause of a bug; discovering the obvious fix does not work; "is this documented", "write this down", "how do we usually do this", "playbook", "next time", "we keep hitting this", "I've fixed three of these".
 ---
 
 # orgami
@@ -44,6 +44,7 @@ its recent merged pull requests, and links to any `AGENTS.md` it already has.
 | What shipped recently | `~/.orgami/<c>/reports/*.md`, newest last |
 | What teammates hit before you | `orgami notes`, `orgami notes --repo <repo>` |
 | How to run, ship or unbreak it | `orgami runbook <repo>`, or `~/.orgami/<c>/map/runbooks/<repo>.md` |
+| How a recurring kind of change is made | `orgami playbook <repo>`, `orgami playbooks` |
 | How anything ships, org-wide | `~/.orgami/<c>/map/RUNBOOK.md` |
 | Which repo defines a symbol | `orgami depth --symbol <name>`, when `map/depth.json` exists |
 | The map as a picture | `~/.orgami/<c>/map/graph.html`, self-contained, opens anywhere |
@@ -81,6 +82,65 @@ orgami note --repo scraphome --tag rollback "Re-run the previous deploy workflow
 back, the real first thing to check when it breaks, a prerequisite nobody wrote
 down — offer to record it with the matching tag. It lands in that repo's runbook
 for everyone the next time `orgami doc` runs.
+
+## Playbooks — the work that keeps coming round
+
+A runbook is about a repository. A playbook is about a *kind of change* inside
+one: fixing a broken fetcher, adding another endpoint to the same service,
+migrating one more collection, wiring one more client the same way. The repos
+where this matters are the ones holding many of the same thing, and doing the
+fourth one from scratch is pure waste.
+
+```bash
+orgami playbooks                                  # every one recorded
+orgami playbook scraphome                         # every topic in one repo
+orgami playbook scraphome --topic broken-fetcher  # one, printed
+```
+
+**Read the playbook before starting a job that has one.** It carries the shape
+of the case, what to check first, the steps in order, the traps, and the check
+that closes it — written from the instances the team recorded, with the note id
+or pull request behind each claim. Its prose is the one part of the map a model
+wrote, so the evidence it was written from is printed underneath it; where they
+disagree, the evidence wins.
+
+**Record the instance when you finish one.** This is the part that is always
+skipped, and the reason nothing accumulates:
+
+```bash
+orgami note --repo scraphome --tag pattern --topic broken-fetcher \
+  "The Carmax fetcher returned an empty list rather than throwing …"
+```
+
+Write it as an instance, not a manual: what the case looked like, what you did
+in order, what tripped you up, and which parts were particular to this one. Two
+instances under the same `--topic` write the playbook by themselves, and every
+one after that rewrites it.
+
+Judge it by whether the job recurs, not by whether you were surprised. Tedious
+and undocumented is exactly what belongs here. Use a topic general enough for
+the next instance to land on it: `broken-fetcher`, not
+`carmax-fetcher-timeout-2026`.
+
+## When a piece of work is finished
+
+Before moving on, ask two questions, and act on them rather than reporting them:
+
+1. **Did this establish something durable that is not in the code?** The real
+   cause behind a misleading symptom, why the obvious fix does not hold here, a
+   setup step nobody wrote down. That is `orgami note`.
+2. **Was this one of a kind of job that will come round again?** That is
+   `orgami note --tag pattern --topic <job>`.
+
+Both are shared with the team under the user's name, so ask first unless the org
+config has `notes_autosync`. A session that ends without either is the common
+case for the first question and much rarer for the second.
+
+Sessions are also read back on their own — at the end of one, and again at the
+start of the next for any that were killed before they could be — and anything
+they establish is drafted. `orgami drafts` keeps or discards what was written
+for the user. That is a safety net, not a substitute: it only sees what was said
+in the conversation.
 
 ## Shared team memory
 

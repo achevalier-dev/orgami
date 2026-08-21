@@ -61,6 +61,9 @@ The map
                                         print one node and its edges
   orgami card <repo>                    the repo's page: stack, commands, links
   orgami runbook [<repo>]               how to run, ship and unbreak it
+  orgami playbook [<repo>] [--topic T] [--all] [--force]
+                                        how a recurring kind of change is made here
+  orgami playbooks                      every playbook recorded, and its topic
   orgami coupling                       which repos keep changing together
   orgami depth [--only <repo>] [--jobs N] [--setup] [--python <bin>]
                                         parse every checkout with tree-sitter
@@ -87,8 +90,10 @@ Digests
 
 Team memory
   orgami note ["what you learned"]      record it for the whole team
+  orgami note --tag pattern --topic T   record one instance of recurring work
   orgami notes [--repo R] [--tag T] [q] what the team has recorded
   orgami autonote [publish|drafts]      send notes out as written, or hold them
+  orgami note-sweep                     read back sessions that never ended cleanly
   orgami drafts                         keep or drop notes written for you
   orgami sync [--pr]                    exchange notes through the docs repo
   orgami sync --pull [--max-age MIN]    take what the team wrote, push nothing
@@ -219,6 +224,17 @@ case $cmd in
     source "$ROOT/lib/notes.sh"
     source "$ROOT/lib/autonote.sh"
     cmd_note_auto "$@"
+    ;;
+  note-sweep)
+    source "$ROOT/lib/notes.sh"
+    source "$ROOT/lib/autonote.sh"
+    cmd_note_sweep "$@"
+    ;;
+  playbook | playbooks)
+    source "$ROOT/lib/notes.sh"
+    source "$ROOT/lib/playbook.sh"
+    [[ $cmd == playbooks ]] && set -- --list "$@"
+    cmd_playbook "$@"
     ;;
   autonote)
     source "$ROOT/lib/notes.sh"

@@ -119,6 +119,15 @@ both count and narrate does neither reliably.
 The same split applies everywhere: derive what can be derived, and spend the
 model only on the part that genuinely needs language.
 
+Playbooks are the one artefact where the *content* is model-written, because a
+procedure exists only in what repeated instances had in common and cannot be
+derived from committed files. The rule does not lapse there, it moves: the
+gathering is exact and tested, everything the model was handed is printed
+underneath what it wrote, each claim carries the note id or pull request behind
+it, and the prompt is told to write `TODO — the evidence does not say how`
+rather than fill a gap. Nothing else in the map may follow that pattern without
+the same three guards.
+
 ### Links are generated, never written by the model
 
 The model writes `org/repo#123`; `linkify_prs` turns it into a URL afterwards.

@@ -35,6 +35,11 @@ timeout 6 "$ORGAMI" sync --pull --max-age 30 --quiet >/dev/null 2>&1 || true
 # merging it if it passes — happens detached, so the session never waits.
 "$ORGAMI" autosync --background --quiet >/dev/null 2>&1 || true
 
+# Most sessions never end cleanly — a window is closed, a machine is shut — and
+# SessionEnd does not fire for any of them. Whatever those sessions learned is
+# read back here instead, detached, newest first.
+"$ORGAMI" note-sweep --background >/dev/null 2>&1 || true
+
 brief=$("$ORGAMI" brief 2>/dev/null || true)
 
 # Notes drafted from earlier sessions, waiting for a person to keep or drop them.
@@ -56,10 +61,21 @@ $brief
 $waiting
 
 Use this instead of re-deriving it. \`orgami context\` for the full page.
-If this session turns up something durable that is not in the code — the real
-cause of a bug, why an obvious fix does not work here, a missing setup step —
-offer to record it with \`orgami note "..."\`, and ask before writing, because
-notes are shared with the whole team under the user's name.
+
+Reading the map is half of it. When a piece of work in this session is done,
+decide what it leaves behind for the next person:
+
+- a durable fact that is not visible in the code — the real cause of a bug, why
+  the obvious fix does not hold here, a setup step nobody wrote down:
+  \`orgami note "..."\`;
+- one instance of a job that will come round again — one more fetcher, one more
+  endpoint, one more migration, one more integration wired the same way:
+  \`orgami note --tag pattern --topic <the-job> "..."\`. Two instances under one
+  topic write that job's playbook by themselves, and the next one starts from it
+  instead of from nothing.
+
+Ask before writing: notes are shared with the whole team under the user's name.
+The orgami skill has the rest — playbooks, runbooks, decisions, what is deployed.
 CTX
 )
 

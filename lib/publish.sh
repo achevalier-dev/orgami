@@ -64,6 +64,8 @@ publish_front_page() {
       echo "| [Architecture]($path/ARCHITECTURE.md) | how the repositories connect, what deploys them, which hosts they reach |"
     [[ -f $DIR/map/RUNBOOK.md ]] &&
       echo "| [Runbook]($path/RUNBOOK.md) | how everything ships, shared services, health endpoints |"
+    [[ -f $DIR/map/PLAYBOOKS.md ]] &&
+      echo "| [Playbooks]($path/PLAYBOOKS.md) | how a kind of change that keeps coming round is made here |"
     [[ -f $DIR/map/INCIDENTS.md ]] &&
       echo "| [Incidents]($path/INCIDENTS.md) | what pages you, what has broken before and what it turned out to be |"
     [[ -f $DIR/map/DECISIONS.md ]] &&
@@ -181,7 +183,7 @@ cmd_publish() {
   # anyone holding the page can run the same `dig` and check it. That makes the
   # reading reproducible, which is the property everything else in this list has
   # and a cloud reading does not.
-  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md INCIDENTS.md ASK-CLAUDE.md ADVISE.md DNS.md graph.json graph.html repos.json coupling.json advise.json dns.json; do
+  for f in ARCHITECTURE.md CONVENTIONS.md DECISIONS.md RUNBOOK.md PLAYBOOKS.md INCIDENTS.md ASK-CLAUDE.md ADVISE.md DNS.md graph.json graph.html repos.json coupling.json advise.json dns.json; do
     cp -f "$DIR/map/$f" "$dest/" 2>/dev/null || true
   done
 
@@ -204,6 +206,10 @@ cmd_publish() {
   if compgen -G "$DIR/map/runbooks/*.md" >/dev/null; then
     mkdir -p "$dest/runbooks"
     cp -f "$DIR/map/runbooks/"*.md "$dest/runbooks/" 2>/dev/null || true
+  fi
+  if compgen -G "$DIR/map/playbooks/*.md" >/dev/null; then
+    mkdir -p "$dest/playbooks"
+    cp -f "$DIR/map/playbooks/"*.md "$dest/playbooks/" 2>/dev/null || true
   fi
 
   # How this company wants notes handled, so a teammate who joins inherits it

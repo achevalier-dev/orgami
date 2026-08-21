@@ -252,6 +252,12 @@ cmd_publish() {
 # orgami weekly — the whole loop, for the systemd timer.
 cmd_weekly() {
   load_company
+  # The timer is the one moment a week nobody is waiting on the terminal, which
+  # makes it the right place to take the newest orgami before running the rest.
+  # It refuses a checkout with work in it, so a machine that develops orgami is
+  # never pulled from underneath.
+  source "$ROOT/lib/update.sh"
+  cmd_update --quiet || true
   cmd_pull --last 0
   cmd_report
   cmd_scan

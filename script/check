@@ -111,6 +111,13 @@ depth() {
   ./test/depth_parse_test.sh
 }
 
+# `orgami update` runs unattended, so what matters is what it refuses. Runs
+# against real git repositories in a temp directory — no network, no remote.
+update() {
+  ./test/update_test.sh >/dev/null
+  echo "update: refuses dirty, diverged, untracked and the plugin clone"
+}
+
 # A note left in an unmerged pull request is a note nobody wrote. Runs against a
 # stub gh and a stub git — no network, no repository, no push.
 notes() {
@@ -141,14 +148,15 @@ case ${1-} in
   --dns) dns ;;
   --live) live ;;
   --depth) depth ;;
+  --update) update ;;
   --notes) notes ;;
   --playbook) playbook ;;
   --html) html ;;
-  "") syntax && lint && stats && profile && vendors && advise && dns && live && depth && notes && playbook && html ;;
+  "") syntax && lint && stats && profile && vendors && advise && dns && live && depth && update && notes && playbook && html ;;
   *)
     echo "usage: script/check [--syntax-only | --lint-only | --stats | --profile |" >&2
     echo "                     --vendors | --advise | --dns | --live | --depth |" >&2
-    echo "                     --notes | --playbook | --html]" >&2
+    echo "                     --update | --notes | --playbook | --html]" >&2
     exit 2
     ;;
 esac

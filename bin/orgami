@@ -33,6 +33,7 @@ orgami — your organization's map, digests and memory, in your agent's context
   orgami live               what is actually deployed, from the providers
   orgami publish            commit the map and the reports to the docs repo
   orgami schedule           run it on a timer, daily and weekly
+  orgami update             pull the newest orgami, here and in the editor
 
   orgami help --all         every command, including the rare ones
 EOF
@@ -50,6 +51,8 @@ Setup
   orgami schedule [--daily] [--off]     run on systemd, launchd or cron
   orgami claude-project [<url>]         the Claude project that reads the docs repo
   orgami version                        which version is installed
+  orgami update [--check]               pull the newest orgami, and the plugin with it
+  orgami update --dev [<path>]          point both installs at a working checkout
 
 The map
   orgami scan [--only <repo>] [--depth N]
@@ -224,6 +227,10 @@ case $cmd in
     source "$ROOT/lib/notes.sh"
     source "$ROOT/lib/autonote.sh"
     cmd_note_auto "$@"
+    ;;
+  update)
+    source "$ROOT/lib/update.sh"
+    cmd_update "$@"
     ;;
   note-sweep)
     source "$ROOT/lib/notes.sh"

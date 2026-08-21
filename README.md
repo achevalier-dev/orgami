@@ -379,6 +379,26 @@ Cursor reaches the same parity through its `sessionStart` hook; anything that
 speaks MCP gets the map as tools; anything that reads `AGENTS.md` can have the
 context written into the repo. See **[docs/agents.md](docs/agents.md)**.
 
+## Staying up to date
+
+Two copies end up on a machine — the clone that owns the CLI, and the clone
+Claude Code keeps for the plugin — and neither updates itself. `orgami update`
+moves both, whichever one you run it from; it also runs once a day at session
+start and at the top of the weekly timer, and the next session says what
+changed. A CLI too old to have the command is updated by the plugin's copy
+instead, so there is nothing to do by hand. It refuses any checkout
+with uncommitted work, commits of its own, or no upstream, so a machine that
+develops orgami is never pulled from underneath.
+
+```bash
+orgami update          # both installs, and relink whatever is new
+orgami update --check  # what you would get, without taking it
+orgami update --dev    # this checkout becomes what the CLI and the plugin read
+```
+
+`ORGAMI_AUTOUPDATE=0` or `"auto_update": false` in `~/.orgami/config.json` turns
+the automatic half off.
+
 ## More than one organization
 
 orgami assumes one. If you carry a second — a consultancy, a side project, an

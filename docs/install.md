@@ -101,14 +101,63 @@ git clone https://github.com/achevalier-dev/orgami ~/orgami
 cd ~/orgami && ./install.sh
 ```
 
-## 4. Point it at an organization
+## 4. Staying up to date
+
+Two copies of orgami end up on a machine and neither updates itself: the clone
+that owns the CLI on your PATH, and the clone Claude Code keeps for the plugin —
+the skill, the slash commands and the session hooks. They drift apart silently,
+and the symptom is a fix you know landed doing nothing.
+
+```bash
+orgami update          # move both, and relink whatever is new
+orgami update --check  # what you would get, without taking it
+```
+
+It runs on its own too: once a day at session start, detached, and again at the
+start of the weekly timer. The next session says what moved, once. It moves
+*every* copy on the machine, not the one that happens to be running — a plugin
+hook executes the plugin's copy while the CLI on your PATH is a different clone
+entirely, and updating only one of them is how the other stays a fortnight
+behind.
+
+A CLI old enough to need updating has no `orgami update` in it, so the session
+hook falls back to the plugin's copy, which moves both. That closes the loop:
+whichever copy is current updates the other, and there is no manual first step
+on a machine that has the plugin.
+
+It refuses any checkout with uncommitted work, commits of its own, or no
+upstream, and it never pulls Claude Code's clone directly — that goes through
+`claude plugin marketplace update`.
+
+Turn it off with `ORGAMI_AUTOUPDATE=0`, or `"auto_update": false` in
+`~/.orgami/config.json`.
+
+### Working on orgami itself
+
+Point both installs at your checkout, and an edit is live in the next session
+with no commit, push or pull in between:
+
+```bash
+cd ~/path/to/orgami
+orgami update --dev
+```
+
+That links the CLI to the checkout and swaps the Claude Code marketplace from
+GitHub to the local path. To go back:
+
+```bash
+claude plugin marketplace remove orgami
+claude plugin marketplace add achevalier-dev/orgami
+```
+
+## 5. Point it at an organization
 
 ```bash
 orgami init     # map one yourself — pick the org, it does the rest
 orgami join     # or pick up one a colleague already mapped, no scan needed
 ```
 
-## 5. Optional, once per organization
+## 6. Optional, once per organization
 
 ```bash
 orgami schedule                # weekly, on systemd or launchd, cron line elsewhere

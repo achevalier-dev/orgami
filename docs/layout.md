@@ -33,6 +33,7 @@ lib/autonote.sh        notes drafted from a session that has ended, and the
                        sweep for sessions that never ended cleanly
 lib/playbook.sh        the procedure behind work that keeps coming round
 lib/schedule.sh        the weekly and daily timers, per platform
+lib/update.sh          moving both installs on a machine to the same version
 lib/mcp.py             the MCP server, standard library only
 lib/agents.sh          AGENTS.md and Cursor rules, MCP config snippets
 lib/ui.sh              the menu and the setup wizard

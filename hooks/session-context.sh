@@ -40,6 +40,26 @@ timeout 6 "$ORGAMI" sync --pull --max-age 30 --quiet >/dev/null 2>&1 || true
 # read back here instead, detached, newest first.
 "$ORGAMI" note-sweep --background >/dev/null 2>&1 || true
 
+# Two copies of orgami live on a machine — the CLI's clone and Claude Code's
+# plugin clone — and neither updates itself. Once a day, detached, both move.
+#
+# Which copy does the moving matters. A CLI old enough to need updating is a CLI
+# without `orgami update` in it, so asking it would fail forever — the command
+# that fixes staleness would be the one missing. The plugin's copy is the one
+# `/plugin install` and `/plugin marketplace update` bring in, so it is the one
+# likelier to have the command; whichever copy does have it moves both clones,
+# so the machine only needs one of the two to be current.
+orgami_update() {
+  "$ORGAMI" update "$@" 2>/dev/null && return 0
+  [[ -n ${CLAUDE_PLUGIN_ROOT:-} && -x $CLAUDE_PLUGIN_ROOT/bin/orgami ]] || return 1
+  "$CLAUDE_PLUGIN_ROOT/bin/orgami" update "$@" 2>/dev/null
+}
+
+orgami_update --if-stale --background >/dev/null 2>&1 || true
+
+# What a previous session's update actually changed, said once.
+updated=$(orgami_update --report || true)
+
 brief=$("$ORGAMI" brief 2>/dev/null || true)
 
 # Notes drafted from earlier sessions, waiting for a person to keep or drop them.
@@ -50,8 +70,9 @@ if [[ ${drafts:-0} -gt 0 ]]; then
 $drafts note(s) were drafted from earlier sessions and are waiting to be kept or
 thrown away. Mention this once, and offer to run \`orgami drafts\`."
 fi
-# Drafts are worth surfacing even outside a mapped checkout; a brief is not.
-if [[ -z $brief && -z $waiting ]]; then
+# Drafts and an update are worth surfacing even outside a mapped checkout; a
+# brief is not.
+if [[ -z $brief && -z $waiting && -z $updated ]]; then
   [[ $JSON == 1 ]] && echo '{}'
   exit 0
 fi
@@ -59,6 +80,9 @@ fi
 context=$(cat <<CTX
 $brief
 $waiting
+${updated:+
+$updated
+Mention this once, so the user knows the tooling moved under them.}
 
 Use this instead of re-deriving it. \`orgami context\` for the full page.
 
